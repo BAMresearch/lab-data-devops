@@ -3,7 +3,7 @@
 . /home/buildbot/scicat/deploy/services/deploytools
 loadSiteConfig
 # make sure the passwords are defined
-checkVars SC_OPENBIS_DATA SC_OPENBIS_FQDN OPENBIS_DB_ADMIN_PASS OPENBIS_ADMIN_PASS OPENBIS_DB_APP_PASS || exit 1
+checkVars OPENBIS_DATA OPENBIS_FQDN OPENBIS_DB_ADMIN_PASS OPENBIS_ADMIN_PASS OPENBIS_DB_APP_PASS || exit 1
 
 makepass() {
     dd if=/dev/urandom bs=1 count=20 status=none | base64 | sed 's/.$//'
@@ -20,7 +20,7 @@ stopContainer() {
     fi
 }
 
-BASEPATH="$SC_OPENBIS_DATA"  # of persistent data storage
+BASEPATH="$OPENBIS_DATA"  # of persistent data storage
 # Create a podman network
 NETWORK_NAME=openbis-network
 if ! podman network ls -qn | grep -q "$NETWORK_NAME"; then
@@ -53,7 +53,7 @@ if [ "$1" = up ]; then
         # render landing page
         tmpfn=static/index.html
         cp landingpage.html "$tmpfn"
-        for name in SC_OPENBIS_FQDN OPENBIS_INSTANCE; do
+        for name in OPENBIS_FQDN OPENBIS_INSTANCE; do
             set | grep -q "^$name=" || continue
             value="$(eval echo \$$name)"
             #echo "name: $name, value: $value"
@@ -84,7 +84,7 @@ if [ "$1" = up ]; then
             -e OPENBIS_ETC="/etc/openbis" \
             -e OPENBIS_HOME="/home/openbis" \
             -e OPENBIS_LOG="/var/log/openbis" \
-            -e OPENBIS_FQDN="$SC_OPENBIS_FQDN" \
+            -e OPENBIS_FQDN="$OPENBIS_FQDN" \
             openbis/openbis-app:$OPENBIS_TAG
     fi
 

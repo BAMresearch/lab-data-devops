@@ -11,7 +11,7 @@ scriptdir="$(dirname "$scriptpath")"
 
 loadSiteConfig
 
-checkVars SC_OPENBIS_PUB SC_OPENBIS_KEY || exit 1
+checkVars OPENBIS_PUB OPENBIS_KEY || exit 1
 SVC_NAME=openbis
 SECRET_NAME="${SVC_NAME}.tls"
 NS=openbis
@@ -19,10 +19,10 @@ NS=openbis
 if [ "$1" = up ];
 then
     namespaceExists "$NS" || kubectl create ns "$NS"
-    createTLSsecret "$NS" "$SECRET_NAME" "$SC_REGISTRY_PUB" "$SC_REGISTRY_KEY"
+    createTLSsecret "$NS" "$SECRET_NAME" "$OPENBIS_PUB" "$OPENBIS_KEY"
     tmpfn="$(mktemp)"
     cp openbis_ingress.yaml "$tmpfn"
-    for name in SC_OPENBIS_FQDN SECRET_NAME DOMAINBASE; do
+    for name in OPENBIS_FQDN SECRET_NAME DOMAINBASE; do
         set | grep -q "^$name=" || continue
         value="$(eval echo \$$name)"
         #echo "name: $name, value: $value"

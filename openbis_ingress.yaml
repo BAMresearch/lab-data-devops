@@ -9,11 +9,11 @@ metadata:
 spec:
   tls:
   - hosts:
-    - SC_OPENBIS_FQDN
+    - OPENBIS_FQDN
     secretName: SECRET_NAME 
   ingressClassName: nginx
   rules:
-  - host: SC_OPENBIS_FQDN
+  - host: OPENBIS_FQDN
     http:
       paths:
       - path: /
