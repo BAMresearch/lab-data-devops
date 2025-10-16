@@ -1,0 +1,64 @@
+# Ingress definition
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: openbis-local-backend
+  annotations:
+    # Key annotation for openbis service
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+spec:
+  tls:
+  - hosts:
+    - SC_OPENBIS_FQDN
+    secretName: SECRET_NAME 
+  ingressClassName: nginx
+  rules:
+  - host: SC_OPENBIS_FQDN
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: openbis-landing
+            port:
+              number: 8085
+      - path: /openbis
+        pathType: Prefix
+        backend:
+          service:
+            name: openbis-app
+            port:
+              number: 8080
+      - path: /datastore_server
+        pathType: Prefix
+        backend:
+          service:
+            name: openbis-dss
+            port:
+              number: 8081
+---
+# External Service Definitions
+apiVersion: v1
+kind: Service
+metadata:
+  name: openbis-app
+spec:
+  type: ExternalName
+  externalName: DOMAINBASE
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openbis-landing
+spec:
+  type: ExternalName
+  externalName: DOMAINBASE
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openbis-dss
+spec:
+  type: ExternalName
+  externalName: DOMAINBASE
