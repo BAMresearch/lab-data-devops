@@ -53,7 +53,7 @@ if [ "$1" = up ]; then
         # render landing page
         tmpfn=static/index.html
         cp landingpage.html "$tmpfn"
-        for name in SC_OPENBIS_FQDN; do
+        for name in SC_OPENBIS_FQDN OPENBIS_INSTANCE; do
             set | grep -q "^$name=" || continue
             value="$(eval echo \$$name)"
             #echo "name: $name, value: $value"
