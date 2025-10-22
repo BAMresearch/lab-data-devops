@@ -92,6 +92,14 @@ elif [ "$1" = down ]; then # clean up in reversed order
     stopContainer "$CONT_IDX_NAME"
     stopContainer "$CONT_APP_NAME"
     stopContainer "$CONT_DB_NAME"
+elif [ "$1" = reset ]; then
+    "$0" down
+    sleep 1
+    if [ -d "$BASEPATH" ]; then
+       echo "Deleting files ..."
+       find "$BASEPATH" -mindepth 1 -maxdepth 1 -type d -exec sudo rm -R {} \;
+    fi
+    "$0" up
 else
     echo "No action given, please provide 'up' or 'down'."
     exit 1
