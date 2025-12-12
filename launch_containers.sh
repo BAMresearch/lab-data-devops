@@ -1,5 +1,6 @@
 #!/bin/sh
 
+scriptdir="$(dirname "$(readlink -f "$0")")"
 . /home/buildbot/scicat/deploy/services/deploytools
 loadSiteConfig
 # make sure the passwords are defined
@@ -86,6 +87,43 @@ if [ "$1" = up ]; then
             -e OPENBIS_LOG="/var/log/openbis" \
             -e OPENBIS_FQDN="$OPENBIS_FQDN" \
             openbis/openbis-app:$OPENBIS_TAG
+        # get custom certificate in the container
+        fn=your-cert-chain.pem
+        cp "$scriptdir/$fn" "$OPENBIS_APP_CONFIG_PATH/"
+        chmod 644 "$OPENBIS_APP_CONFIG_PATH/$fn"
+        podman exec -it openbis-app bash -c "
+            cd /root/;
+            awk '/BEGIN CERT/{i++}{print > \"cert\"i\".pem\"}' '/etc/openbis/$fn';
+            ls -la;
+            for keystore in /etc/openbis/{as,dss}/openBIS.keystore; do
+                for cert in cert*.pem; do
+                    keytool -keystore \"\$keystore\" -storepass changeit -importcert -trustcacerts -alias \"customcert-\$cert\" -file \$cert -noprompt;
+                done;
+            done
+        "
+        # set up port forwarding localhost:5432 to openbis-db:5432
+        # old entrypoint
+        podman exec $CONT_APP_NAME sh -c 'apt-get update && apt-get install -y socat'
+        podman exec $CONT_APP_NAME sh -c 'socat TCP-LISTEN:5432,fork,reuseaddr TCP:openbis-db:5432 &'
+        podman exec $CONT_APP_NAME sh -c "cat > /usr/local/bin/port_forward.sh << EOF
+#!/bin/sh
+# Start port forwarding
+socat TCP-LISTEN:5432,fork,reuseaddr TCP:$CONT_DB_NAME:5432 &
+# Original entrypoint execution
+exec \"\$@\"
+EOF"
+        podman exec $CONT_APP_NAME chmod 755 /usr/local/bin/port_forward.sh
+        entrypoint="$(podman inspect openbis-app | jq -r .[0].Config.Entrypoint)"
+        # FIXME: copy service for creating internal property to separate plugin
+        # use notebook code to create property
+        # copy over the harvester plugin after missing property was created FIXME
+        uid=$(stat -c%u "$OPENBIS_APP_CONFIG_PATH/core-plugins/")
+        gid=$(stat -c%g "$OPENBIS_APP_CONFIG_PATH/core-plugins/")
+        cp -R "$scriptdir/harvester" "$OPENBIS_APP_CONFIG_PATH/core-plugins/"
+        chown -R $uid:$gid "$OPENBIS_APP_CONFIG_PATH/core-plugins/harvester"
+        chmod o-rwx "$OPENBIS_APP_CONFIG_PATH/core-plugins/harvester"
+        # run customized image
+        # podman run --detach --name "$CONT_APP_NAME" --hostname "$CONT_APP_NAME" --network "$NETWORK_NAME"             --pid host -p 8080:8080 -p 8081:8081             -v "$OPENBIS_APP_DATA_PATH":/data             -v "$OPENBIS_APP_CONFIG_PATH":/etc/openbis             -v "$OPENBIS_APP_LOGS_PATH":/var/log/openbis             -e OPENBIS_ADMIN_PASS             -e OPENBIS_DATA="/data/openbis"             -e OPENBIS_DB_ADMIN_PASS             -e OPENBIS_DB_ADMIN_USER="postgres"             -e OPENBIS_DB_APP_PASS             -e OPENBIS_DB_APP_USER="openbis"             -e OPENBIS_DB_HOST="$CONT_DB_NAME"             -e OPENBIS_ETC="/etc/openbis"             -e OPENBIS_HOME="/home/openbis"             -e OPENBIS_LOG="/var/log/openbis"             -e OPENBIS_FQDN="$OPENBIS_FQDN"  --entrypoint /usr/local/bin/port_forward.sh          openbis-app-fwd $(podman inspect docker.io/openbis/openbis-app:20.10.11 | jq -r .[0].Config.Entrypoint[0])
     fi
 
 elif [ "$1" = down ]; then # clean up in reversed order
