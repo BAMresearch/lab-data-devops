@@ -1,0 +1,27 @@
+# postgres
+# setting up a postgres db
+# USAGE:
+#   $ . postgres
+
+startPostgres() {
+    local cname="$1"
+    local tag="$2"
+    local basepath="$3"
+    local network="$4"
+    local adminPass="$5"
+    isContainerRunning "$cname" && return
+    # Set up the database
+    export TILED_DB_PATH="$basepath/db-data"
+    mkdir -p "$TILED_DB_PATH"
+    podman run --detach --name "$cname" --hostname "$cname" --network "$network" \
+        -v "$TILED_DB_PATH":/var/lib/postgresql/data \
+        -e PGDATA=/var/lib/postgresql/data/pgdata \
+        -e POSTGRES_HOST_AUTH_METHOD="" \
+        -e POSTGRES_PASSWORD="$adminPass" \
+        docker.io/library/postgres:"$tag"
+    # wait for DB to be ready
+    finalmsg=' [1] LOG:  database system is ready to accept connections'
+    while ! podman logs "$cname" 2>&1 | tail -n3 | grep -qF "$finalmsg"; do
+        sleep 1
+    done
+}

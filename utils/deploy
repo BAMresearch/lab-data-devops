@@ -12,6 +12,8 @@ newpwd()
 {
     local count="$1"
     openssl rand -base64 "$count" | tr -d '+=/'
+    # another way:
+    # dd if=/dev/urandom bs=1 count=20 status=none | base64 | sed 's/.$//'
 }
 
 # makes sure required ENV vars exist (supplied by arguments)
@@ -35,6 +37,18 @@ stringTail() {
     local start="$((length - count))"
     # Extract the last N characters
     echo $(echo "$text" | cut -c"$start"-)
+}
+
+formatTextFile() {
+    local fpath="$1"
+    shift
+    for name in $@; do
+        set | grep -q "^$name=" || continue  # skip if var is not set
+        local value="$(eval echo \$$name)"
+        #echo "name: $name, value: $value"
+        sed -i "s/\\b$name\\b/$value/" "$fpath"
+    done
+    echo "updated config: $fpath"
 }
 
 loadSiteConfig()

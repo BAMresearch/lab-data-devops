@@ -1,0 +1,36 @@
+# ingress
+# setting up ingress rules of an existing k8s
+# USAGE:
+#   $ . ingress
+
+setupIngress() {
+    NS="$1"
+    YAML_PATH="$2"
+    PUBFILE="$3"
+    KEYFILE="$4"
+    FQDN="$5"
+    SVC="$NS"
+    SECRET_NAME="$NS.tls"
+    namespaceExists "$NS" || kubectl create ns "$NS"
+    createTLSsecret "$NS" "$SECRET_NAME" "$PUBFILE" "$KEYFILE"
+    tmpfn="$(mktemp)"
+    cp "$YAML_PATH" "$tmpfn"
+    formatTextFile "$tmpfn" SVC FQDN SECRET_NAME DOMAINBASE
+    cat "$tmpfn"
+    # echo "$tmpfn" # for debugging
+    cmdExists kubectl && \
+        kubectl apply -n "$NS" -f "$tmpfn" && rm -f "$tmpfn"
+}
+
+teardownIngress() {
+    NS="$1"
+    SECRET_NAME="$NS.tls"
+    SERVICES="$2"
+    if cmdExists kubectl; then
+        kubectl delete secret -n "$NS" "$SECRET_NAME"
+        kubectl delete service -n "$NS" $SERVICES
+        kubectl delete ingress -n "$NS" "$NS-local-backend"
+        kubectl delete ns "$NS"
+    fi
+    echo "done."
+}
