@@ -1,0 +1,128 @@
+# deployutils
+# helper functions for container set up, config handling
+# USAGE:
+#   $ . deployutils
+
+cmdExists()
+{
+    command -v "$1" > /dev/null
+}
+
+newpwd()
+{
+    local count="$1"
+    openssl rand -base64 "$count" | tr -d '+=/'
+}
+
+# makes sure required ENV vars exist (supplied by arguments)
+checkVars()
+{
+    for name in $@; do
+        if eval "[ -z \"\$$name\" ]"; then
+            echo "$name not defined! Please run 'export $name=<your value>' first."
+            return 1
+        fi
+    done
+}
+
+# return the last N (2nd arg) characters of the given string (1st arg)
+stringTail() {
+    local text="$1"
+    local count="$2"
+    # Get the length of the string
+    local length="$(echo "$text" | wc -c)"
+    # Calculate the starting position for cut
+    local start="$((length - count))"
+    # Extract the last N characters
+    echo $(echo "$text" | cut -c"$start"-)
+}
+
+loadSiteConfig()
+{
+    local fx="loadSiteConfig():"
+    if [ -z "$SITECONFIG" ]; then
+        SITECONFIG="$(readlink -f siteconfig)"
+        echo "$fx SITECONFIG is not set, using '$SITECONFIG'."
+    fi
+    export SITECONFIG
+    local fn="$SITECONFIG/general.rc"
+    if [ ! -f "$fn" ]; then
+        echo "$fx WARNING: Missing general settings in '$fn'!"
+        read -p "Shall I create an empty template? [N/y] " answer
+        if [ "$answer" != y ]; then
+            echo "Nope, stopping here."
+            exit 1
+        fi
+        cmdExists openssl || (echo "Openssl for generating passwords required! Giving up."; return)
+        mkdir -p "$SITECONFIG"
+        cat > "$fn" << EOF
+export DOMAINBASE=sub.example.com
+# letsencrypt working dir for a wildcard domain
+LE_NAME="*.\$DOMAINBASE"
+LE_BASE_PATH=
+export LE_WORKING_DIR=\$LE_BASE_PATH/\$LE_NAME
+EOF
+        for name in $@; do
+            local value="";
+            # generate a password for any _PASS variable
+            [ _"$(stringTail "$name" 5)"_ = __PASS_ ] && value="$(newpwd 16)"
+            [ _"$(stringTail "$name" 7)"_ = __APIKEY_ ] && value="$(openssl rand -hex 32)"
+            # default location of letsencrypt certs
+            [ _"$(stringTail "$name" 4)"_ = __PUB_ ] && value="\$LE_WORKING_DIR/fullchain.cer"
+            [ _"$(stringTail "$name" 4)"_ = __KEY_ ] && value="\$LE_WORKING_DIR/\$LE_NAME.key"
+            echo "export $name=$value" >> "$fn"
+        done
+        echo " -> Created a template, please fill it out."
+        return 1
+    fi
+    . "$fn"
+    checkVars $@
+}
+
+isContainerRunning() {
+    local cname="$1"
+    podman ps -a --format "{{.ID}}  {{.Image}} {{.Names}}" | grep -q "$cname\$"
+}
+
+stopContainer() {
+    local cname="$1"
+    if isContainerRunning "$cname"; then
+        echo "Stop and remove existing $cname container first"
+        podman stop "$cname" && podman rm "$cname"
+    fi
+}
+
+podmanNetwork() {
+    local networkName="$1"
+    if ! podman network ls -qn | grep -q "$networkName"; then
+        echo "Creating network $networkName"
+        podman network create "$networkName" --driver bridge
+    fi
+}
+
+namespaceExists()
+{
+    if cmdExists kubectl; then
+        kubectl get ns -A -o name | grep -q "\\<$1\\>"
+    else
+        return 0
+    fi
+}
+
+createTLSsecret()
+{
+    local ns="$1"
+    local secretName="$2"
+    local pathPub="$3"
+    local pathKey="$4"
+    local fx="createTLSsecret()"
+    [ -z "$secretName" ] && (echo "$fx: Secret name is empty!"; return)
+    [ -f "$pathPub" ] || (echo "$fx: Public certificate file does not exist: '$pathPub'!"; return)
+    [ -f "$pathKey" ] || (echo "$fx: Private key file does not exist: '$pathKey'!"; return)
+    [ -z "$ns" ] || ns="-n $ns"
+    echo "Creating TLS secret from '$(dirname $pathPub)'."
+    cmdExists kubectl && \
+        kubectl $ns create secret tls "$secretName" \
+            --cert="$pathPub" --key="$pathKey" \
+            --dry-run=client -o yaml | kubectl apply -f -
+}

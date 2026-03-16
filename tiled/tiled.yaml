@@ -1,0 +1,34 @@
+# Ingress definition
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: SVC-local-backend
+  annotations:
+    # Key annotation for openbis service
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+spec:
+  tls:
+  - hosts:
+    - FQDN
+    secretName: SECRET_NAME 
+  ingressClassName: nginx
+  rules:
+  - host: FQDN
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: tiled-srv
+            port:
+              number: 8020
+---
+# External Service Definitions
+apiVersion: v1
+kind: Service
+metadata:
+  name: tiled-srv
+spec:
+  type: ExternalName
+  externalName: DOMAINBASE
