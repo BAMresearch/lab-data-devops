@@ -11,10 +11,10 @@ startPostgres() {
     local adminPass="$5"
     isContainerRunning "$cname" && return
     # Set up the database
-    export TILED_DB_PATH="$basepath/db-data"
-    mkdir -p "$TILED_DB_PATH"
+    local DB_PATH="$basepath/db-data"
+    mkdir -p "$DB_PATH"
     podman run --detach --name "$cname" --hostname "$cname" --network "$network" \
-        -v "$TILED_DB_PATH":/var/lib/postgresql/data \
+        -v "$DB_PATH":/var/lib/postgresql/data \
         -e PGDATA=/var/lib/postgresql/data/pgdata \
         -e POSTGRES_HOST_AUTH_METHOD="" \
         -e POSTGRES_PASSWORD="$adminPass" \
