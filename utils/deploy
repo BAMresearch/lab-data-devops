@@ -10,8 +10,8 @@ cmdExists()
 
 newpwd()
 {
-    local count="$1"
-    openssl rand -base64 "$count" | tr -d '+=/'
+    local count="${1:-25}"
+    openssl rand -base64 "$count" | tr -d '+=/\n'
     # another way:
     # dd if=/dev/urandom bs=1 count=20 status=none | base64 | sed 's/.$//'
 }
