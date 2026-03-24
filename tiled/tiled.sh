@@ -103,7 +103,7 @@ if [ "$1" = up ]; then
     # wait a moment to get ready
     while ! systemctl --user is-active --quiet "$CONT_DB_NAME"; do sleep 1; done
 
-    genTiledSvc "$CONT_SRV_NAME" latest "$TILED_DATA" "$NETWORK_NAME" "$CONT_DB_NAME" # "$TILED_DB_ADMIN_PASS" "$TILED_APIKEY"
+    genTiledSvc "$CONT_SRV_NAME" latest "$TILED_DATA" "$NETWORK_NAME" "$CONT_DB_NAME"
     systemctl --user restart "$CONT_SRV_NAME"
 
     setupIngress "$SVC_NAME" "${scriptpath%.*}.yaml" "$TILED_PUB" "$TILED_KEY" "$TILED_FQDN"
