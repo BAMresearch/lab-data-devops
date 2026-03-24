@@ -114,6 +114,14 @@ podmanNetwork() {
     fi
 }
 
+getPodmanSecret()
+{
+    local secretname="$1"
+    secretjson="$(podman secret inspect "$secretname")"
+    secretId="$(echo $secretjson | jq '.[0].ID')"
+    find $(echo $secretjson | jq -r '.[0].Spec.Driver.Options.path') -name '*.json' -exec jq -r ".$secretId" {} \; | head -n1 | base64 -d
+}
+
 namespaceExists()
 {
     if cmdExists kubectl; then
