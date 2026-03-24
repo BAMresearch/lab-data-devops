@@ -46,7 +46,7 @@ formatTextFile() {
         set | grep -q "^$name=" || continue  # skip if var is not set
         local value="$(eval echo \$$name)"
         #echo "name: $name, value: $value"
-        sed -i "s/\\b$name\\b/$value/" "$fpath"
+        sed -i "s#\\b$name\\b#$value#" "$fpath"
     done
     echo "updated config: $fpath"
 }
