@@ -63,6 +63,7 @@ genTiledSvc()
     fi
 
     local contpath="$HOME/.config/containers/systemd"
+    mkdir -p "$contpath"
 
 cat > "$contpath/$cname.container" << EOF
 [Unit]
