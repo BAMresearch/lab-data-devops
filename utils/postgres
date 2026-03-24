@@ -1,27 +1,54 @@
-# postgres
-# setting up a postgres db
+# utils/postgres
+# Generate a container unit for a postgres db
 # USAGE:
-#   $ . postgres
+#   $ . utils/postgres
 
-startPostgres() {
+genPostgresSvc()
+{
     local cname="$1"
     local tag="$2"
-    local basepath="$3"
+    local dbpath="$3"
     local network="$4"
-    local adminPass="$5"
-    isContainerRunning "$cname" && return
-    # Set up the database
-    local DB_PATH="$basepath/db-data"
-    mkdir -p "$DB_PATH"
-    podman run --detach --name "$cname" --hostname "$cname" --network "$network" \
-        -v "$DB_PATH":/var/lib/postgresql/data \
-        -e PGDATA=/var/lib/postgresql/data/pgdata \
-        -e POSTGRES_HOST_AUTH_METHOD="" \
-        -e POSTGRES_PASSWORD="$adminPass" \
-        docker.io/library/postgres:"$tag"
-    # wait for DB to be ready
-    finalmsg=' [1] LOG:  database system is ready to accept connections'
-    while ! podman logs "$cname" 2>&1 | tail -n3 | grep -qF "$finalmsg"; do
-        sleep 1
-    done
+    shift 4
+    # skip if this service is running already
+    # to be stopped is explicitly, allows indempotent scripting
+    systemctl --user is-active --quiet "$cname" && return
+
+    mkdir -p "$dbpath"
+
+    local secretname="${cname}-pass"
+    local sec;
+    if ! podman secret exists "$secretname"; then
+        newpwd | podman secret create "$secretname" -
+    fi
+
+    local contpath="$HOME/.config/containers/systemd"
+
+cat > "$contpath/$cname.container" << EOF
+[Unit]
+Description=Postgres DB
+After=network-online.target
+
+[Container]
+ContainerName=$cname
+Image=docker.io/library/postgres:$tag
+Volume=$dbpath:/var/lib/postgresql/data:rw,Z
+$(echo "$@" | sed -E 's/([[:space:]])([A-Z_][A-Z0-9_]*=)/\n\2/g' | sed '/^$/d; s/.*/Environment=&/')
+Secret=$secretname,type=env,target=POSTGRES_PASSWORD
+#Ports=5432:5432/tcp
+#PodmanArgs=--group-add keep-groups
+#User=0
+Network=$network
+
+[Service]
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=default.target
+EOF
+    chmod o-rwx "$contpath/$cname.container"
+    # make the new container (or updates) know to systemctl
+    systemctl --user daemon-reload
 }
+
