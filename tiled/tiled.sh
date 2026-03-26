@@ -34,8 +34,6 @@ genTiledSvc()
     shift 5
     systemctl --user is-active --quiet "$cname" && return
     # get internal IP of postgres, shouldn't be necessary but name resolution didnt work before
-    local DB_IP="$(podman inspect "$dbname" | jq -r ".[0].NetworkSettings.Networks.[\"$network\"].IPAddress")"
-    # echo "DB_IP=$DB_IP"
     local CFG_PATH="$basepath/config"
     mkdir -p "$CFG_PATH"
     local CFG_FILE="$CFG_PATH/single_catalog_single_user.yml"
@@ -43,11 +41,9 @@ genTiledSvc()
         # Download the file using curl from GitHub repository
         curl -s -o "$CFG_FILE" "https://raw.githubusercontent.com/bluesky/tiled/main/example_configs/single_catalog_single_user.yml"
     fi
-    dbAdminPass="$(getPodmanSecret "$CONT_DB_NAME"-pass)"
-    #sed -i -e '/^\s*uri/i\      uri:              '"postgresql://postgres:${dbAdminPass}@$DB_IP:5432" -e '/^\s*uri/d' "$CFG_FILE"
-    #sed -i -e '/^\s*writable_storage/i\      writable_storage: '"postgresql://postgres:${dbAdminPass}@$DB_IP:5432/tiled_storage" -e '/^\s*writable_storage/d' "$CFG_FILE"
-    sed -i -e '/^\s*uri/i\      uri:              '"postgresql://postgres:\${TILED_DATABASE_PASSWORD}@$DB_IP:5432" -e '/^\s*uri/d' "$CFG_FILE"
-    sed -i -e '/^\s*writable_storage/i\      writable_storage: '"postgresql://postgres:\${TILED_DATABASE_PASSWORD}@$DB_IP:5432/tiled_storage" -e '/^\s*writable_storage/d' "$CFG_FILE"
+    dbAdminPass="$(getPodmanSecret "${dbname}-pass")"
+    sed -i -e '/^\s*uri/i\      uri:              '"postgresql://postgres:\${TILED_DATABASE_PASSWORD}@$dbname:5432" -e '/^\s*uri/d' "$CFG_FILE"
+    sed -i -e '/^\s*writable_storage/i\      writable_storage: '"postgresql://postgres:\${TILED_DATABASE_PASSWORD}@$dbname:5432/tiled_storage" -e '/^\s*writable_storage/d' "$CFG_FILE"
     # create the db if it does not exist yet
     podman exec "$dbname" psql -U postgres -d postgres \
         -tAc "SELECT 1 FROM pg_database WHERE datname='tiled_storage'" | grep -q 1 \
@@ -76,7 +72,7 @@ Image=ghcr.io/bluesky/tiled:$tag
 Volume=$CFG_PATH:/deploy/config:ro,Z
 Volume=$STORAGE_PATH:/storage:rw,Z
 $(echo "$@" | sed -E 's/([[:space:]])([A-Z_][A-Z0-9_]*=)/\n\2/g' | sed '/^$/d; s/.*/Environment=&/')
-Secret=${CONT_DB_NAME}-pass,type=env,target=TILED_DATABASE_PASSWORD
+Secret=${dbname}-pass,type=env,target=TILED_DATABASE_PASSWORD
 Secret=$apikey,type=env,target=TILED_SINGLE_USER_API_KEY
 PublishPort=8020:8000
 Network=$network
