@@ -1,39 +1,40 @@
-# utils/postgres
-# Generate a container unit for a postgres db
+# utils/webserver
+# Generate a container unit for a nginx webserver
 # USAGE:
-#   $ . utils/postgres
+#   $ . utils/webserver
 
-genPostgresSvc()
+genWebServerSvc()
 {
     local cname="$1"
-    local tag="$2"
-    local dbpath="$3"
+    local staticpath="$2"
+    local port="$3"
     local network="$4"
-    shift 4
+    local tag="$5"
+    local nargs=5
+    [ -z "$tag" ] && nargs=$((nargs-1))
+    [ -z "$network" ] && nargs=$((nargs-1))
+    shift "$nargs"
     # skip if this service is running already
     # to be stopped is explicitly, allows indempotent scripting
     systemctl --user is-active --quiet "$cname" && return
 
-    mkdir -p "$dbpath"
-
-    local secretname=${cname}-admin-pass
-    genPodmanSecret $secretname
+    [ -z "$tag" ] && tag=latest
 
     local contpath="$HOME/.config/containers/systemd"
     mkdir -p "$contpath"
 
 cat > "$contpath/$cname.container" << EOF
 [Unit]
-Description=Postgres DB
+Description=Nginx Web Server
 After=network-online.target
 
 [Container]
 ContainerName=$cname
-Image=docker.io/library/postgres:$tag
-Volume=$dbpath:/var/lib/postgresql/data:rw,Z
+Image=docker.io/library/nginx:$tag
+Volume=$staticpath:/usr/share/nginx/html:ro,Z
 $(echo "$@" | sed -E 's/([[:space:]])([A-Z_][A-Z0-9_]*=)/\n\2/g' | sed '/^$/d; s/.*/Environment=&/')
-Secret=$secretname,type=env,target=POSTGRES_PASSWORD
-Network=$network
+$([ -z "$network" ] || echo "Network=$network")
+PublishPort=$port:80
 
 [Service]
 Restart=always
@@ -46,4 +47,3 @@ EOF
     # make the new container (or updates) know to systemctl
     systemctl --user daemon-reload
 }
-

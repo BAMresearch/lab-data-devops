@@ -1,4 +1,6 @@
 #!/bin/sh
+# Verification
+# https://openbis.readthedocs.io/en/20.10.12-plus/system-documentation/docker/verification.html
 
 scriptpath="$(readlink -f "$0")"
 scriptdir="$(dirname "$scriptpath")"
@@ -6,6 +8,7 @@ scriptname="$(basename "$scriptpath")"
 
 . "$scriptdir/../utils/deploy"
 . "$scriptdir/../utils/postgres"
+. "$scriptdir/../utils/webserver"
 . "$scriptdir/../utils/ingress"
 
 # make sure the passwords are defined
@@ -20,15 +23,68 @@ BASEPATH="$OPENBIS_DATA"  # of persistent data storage
 NETWORK_NAME=openbis-network
 podmanNetwork "$NETWORK_NAME"
 
-startOpenBISLanding() {
+genOpenBISSvc()
+{
     local cname="$1"
-    local staticpath="$2"
-    isContainerRunning "$cname" && return
-    # render landing page to the static files dir
-    local tmpfn="$staticpath/index.html"
-    cp "$staticpath/../landingpage.html" "$tmpfn"
-    formatTextFile "$tmpfn" OPENBIS_FQDN OPENBIS_INSTANCE
-    podman run -d --name "$cname" -p 8085:80 -v "$staticpath":/usr/share/nginx/html:ro nginx
+    local tag="$2"
+    local basepath="$3"
+    local network="$4"
+    local dbcname="$5"
+    #local dbAdminPass="$6"
+    #local apikey="$7"
+    shift 5
+    systemctl --user is-active --quiet "$cname" && return
+
+    genPodmanSecret ${dbcname}-app-pass
+    genPodmanSecret ${cname}-admin-pass
+    local cfg_host_path="$basepath/app-etc"
+    mkdir -p "$basepath/app-data" "$cfg_host_path" "$basepath/app-logs"
+
+    # prepare the custom plugin, put a copy to the work data
+    [ -d "$basepath/create-system-props" ] || cp -R "$scriptdir/create-system-props" "$basepath/"
+    #sed -i "'s/\\(enabled-modules\\s=\\s\\)/\\1create-system-props, /" core-plugins.properties
+    [ -f "$basepath/core-plugins.properties" ] || cp -R "$scriptdir/core-plugins.properties" "$basepath/"
+
+    # prepare the container definition
+    local contpath="$HOME/.config/containers/systemd"
+    mkdir -p "$contpath"
+
+cat > "$contpath/$cname.container" << EOF
+[Unit]
+Description=OpenBIS Server
+After=network-online.target
+
+[Container]
+ContainerName=$cname
+Image=docker.io/openbis/openbis-app:$tag
+Volume=$basepath/app-data:/data:rw,Z
+Volume=$cfg_host_path:/etc/openbis:rw,Z
+Volume=$basepath/app-logs:/var/log/openbis:rw,Z
+Volume=$basepath/create-system-props:/home/openbis/servers/core-plugins/create-system-props:rw,Z
+Volume=$basepath/core-plugins.properties:/home/openbis/servers/core-plugins/core-plugins.properties:rw,Z
+Environment=OPENBIS_DB_HOST=$dbcname
+Environment=OPENBIS_DATA=/data/openbis
+Environment=OPENBIS_ETC=/etc/openbis
+Environment=OPENBIS_HOME=/home/openbis
+Environment=OPENBIS_LOG=/var/log/openbis
+$(echo "$@" | sed -E 's/([[:space:]])([A-Z_][A-Z0-9_]*=)/\n\2/g' | sed '/^$/d; s/.*/Environment=&/')
+Secret=${dbcname}-admin-pass,type=env,target=OPENBIS_DB_ADMIN_PASS
+Secret=${dbcname}-app-pass,type=env,target=OPENBIS_DB_APP_PASS
+Secret=${cname}-admin-pass,type=env,target=OPENBIS_ADMIN_PASS
+PublishPort=8080:8080
+PublishPort=8081:8081
+Network=$network
+
+[Service]
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=default.target
+EOF
+    chmod o-rwx "$contpath/$cname.container"
+    # make the new container (or updates) know to systemctl
+    systemctl --user daemon-reload
 }
 
 CONT_DB_NAME=openbis-db
@@ -36,10 +92,42 @@ CONT_APP_NAME=openbis-app
 CONT_IDX_NAME=openbis-landing
 if [ "$1" = up ]; then
 
-    startPostgres "$CONT_DB_NAME" 15 "$OPENBIS_DATA" "$NETWORK_NAME" "$OPENBIS_DB_ADMIN_PASS"
+    genPostgresSvc "$CONT_DB_NAME" 15 "$OPENBIS_DATA/db-data" "$NETWORK_NAME" \
+        POSTGRES_USER=postgres \
+        POSTGRES_HOST_AUTH_METHOD="" \
+        PGDATA=/var/lib/postgresql/data/pgdata
+    systemctl --user restart "$CONT_DB_NAME"
+    # wait a moment to get ready
+    while ! systemctl --user is-active --quiet "$CONT_DB_NAME"; do sleep 1; done
 
-    startOpenBISLanding "$CONT_IDX_NAME" "$scriptdir/static"
+    # render landing page to the static files dir and put it on port 8085
+    tmpfn="$scriptdir/static/index.html"
+    cp "$scriptdir/landingpage.html" "$tmpfn"
+    formatTextFile "$tmpfn" OPENBIS_FQDN OPENBIS_INSTANCE
+    genWebServerSvc "$CONT_IDX_NAME" "$scriptdir/static" 8085
+    systemctl --user restart "$CONT_IDX_NAME"
+    # wait a moment to get ready
+    while ! systemctl --user is-active --quiet "$CONT_IDX_NAME"; do sleep 1; done
 
+    if ! systemctl --user is-active --quiet "$CONT_APP_NAME"; then
+        genOpenBISSvc "$CONT_APP_NAME" 20.10.11 "$OPENBIS_DATA" "$NETWORK_NAME" "$CONT_DB_NAME" \
+            OPENBIS_DB_ADMIN_USER="postgres" \
+            OPENBIS_DB_APP_USER="openbis" \
+            OPENBIS_FQDN="$OPENBIS_FQDN"
+        systemctl --user restart "$CONT_APP_NAME"
+        podman exec -it "$CONT_APP_NAME" chown -R openbis:openbis /home/openbis/servers/core-plugins
+        podman exec -it "$CONT_APP_NAME" chmod -R g+w /home/openbis/servers/core-plugins
+        # wait a moment to get ready
+        while ! systemctl --user is-active --quiet "$CONT_APP_NAME"; do sleep 1; done
+        # creating internal property $ANNOTATIONS_STATE by installed custom plugin
+        export $(podman exec -it "$CONT_APP_NAME" env | grep OPENBIS_ADMIN_PASS)
+        python3 -m venv "$OPENBIS_DATA/venv"
+        "$OPENBIS_DATA/venv/bin/pip" install -q pybis
+        while ! "$OPENBIS_DATA/venv/bin/python" "$scriptdir/create_annotations_state.py"; do
+            sleep 3  # retry until the server becomes ready
+        done
+    fi
+    exit
     if ! isContainerRunning "$CONT_APP_NAME"; then
         set -x
         # Run application container
@@ -48,6 +136,7 @@ if [ "$1" = up ]; then
         export OPENBIS_APP_CONFIG_PATH="$BASEPATH/app-etc"
         export OPENBIS_APP_LOGS_PATH="$BASEPATH/app-logs"
         mkdir -p "$OPENBIS_APP_DATA_PATH" "$OPENBIS_APP_CONFIG_PATH" "$OPENBIS_APP_LOGS_PATH"
+        export OPENBIS_DB_ADMIN_PASS="$(getPodmanSecret ${CONT_DB_NAME}-pass)"
         podman run --detach --name "$CONT_APP_NAME" --hostname "$CONT_APP_NAME" --network "$NETWORK_NAME" \
             --pid host -p 8080:8080 -p 8081:8081 \
             -v "$OPENBIS_APP_DATA_PATH":/data \
@@ -95,6 +184,7 @@ socat TCP-LISTEN:5432,fork,reuseaddr TCP:$CONT_DB_NAME:5432 &
 exec \"\$@\"
 EOF"
         podman exec $CONT_APP_NAME chmod 755 /usr/local/bin/port_forward.sh
+        exit # FIXME
         # old entrypoint
         entrypoint="$(podman inspect "$CONT_APP_NAME" | jq -r .[0].Config.Entrypoint)"
         # FIXME: copy service for creating internal property to separate plugin
@@ -112,14 +202,14 @@ EOF"
 
 elif [ "$1" = down ]; then # clean up in reversed order
     teardownIngress "$SVC_NAME" "openbis-landing openbis-app openbis-dss"
-    stopContainer "$CONT_IDX_NAME"
-    stopContainer "$CONT_APP_NAME"
-    stopContainer "$CONT_DB_NAME"
+    systemctl --user stop "$CONT_IDX_NAME"
+    systemctl --user stop "$CONT_APP_NAME"
+    systemctl --user stop "$CONT_DB_NAME"
 elif [ "$1" = reset ]; then
     "$0" down
     sleep 1
     if [ -d "$BASEPATH" ]; then
-       echo "Deleting files ..."
+       echo "Deleting files in '$BASEPATH' ..."
        find "$BASEPATH" -mindepth 1 -maxdepth 1 -type d -exec sudo rm -R {} \;
     fi
     "$0" up

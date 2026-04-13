@@ -114,6 +114,15 @@ podmanNetwork() {
     fi
 }
 
+genPodmanSecret()
+{
+    # generate a password if none exists
+    local pname="$1"
+    if ! podman secret exists "$pname"; then
+        openssl rand -hex 32 | tr -d '\n' | podman secret create "$pname" -
+    fi
+}
+
 getPodmanSecret()
 {
     local secretname="$1"
