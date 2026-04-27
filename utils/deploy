@@ -55,7 +55,7 @@ loadSiteConfig()
 {
     local fx="loadSiteConfig():"
     if [ -z "$SITECONFIG" ]; then
-        SITECONFIG="$(readlink -f siteconfig)"
+        SITECONFIG="$(readlink -f .siteconfig)"
         echo "$fx SITECONFIG is not set, using '$SITECONFIG'."
     fi
     export SITECONFIG
