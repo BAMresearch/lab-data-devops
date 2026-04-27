@@ -3,6 +3,10 @@
 # USAGE:
 #   $ . ingress
 
+k8sAccess() {
+    cmdExists kubectl && kubectl get po -A >/dev/null 2>&1
+}
+
 setupIngress() {
     NS="$1"
     YAML_PATH="$2"
@@ -11,6 +15,7 @@ setupIngress() {
     FQDN="$5"
     SVC="$NS"
     SECRET_NAME="$NS.tls"
+    k8sAccess || return
     namespaceExists "$NS" || kubectl create ns "$NS"
     createTLSsecret "$NS" "$SECRET_NAME" "$PUBFILE" "$KEYFILE"
     tmpfn="$(mktemp)"
@@ -18,19 +23,17 @@ setupIngress() {
     formatTextFile "$tmpfn" SVC FQDN SECRET_NAME DOMAINBASE
     cat "$tmpfn"
     # echo "$tmpfn" # for debugging
-    cmdExists kubectl && \
-        kubectl apply -n "$NS" -f "$tmpfn" && rm -f "$tmpfn"
+    kubectl apply -n "$NS" -f "$tmpfn" && rm -f "$tmpfn"
 }
 
 teardownIngress() {
     NS="$1"
     SECRET_NAME="$NS.tls"
     SERVICES="$2"
-    if cmdExists kubectl; then
-        kubectl delete secret -n "$NS" "$SECRET_NAME"
-        kubectl delete service -n "$NS" $SERVICES
-        kubectl delete ingress -n "$NS" "$NS-local-backend"
-        kubectl delete ns "$NS"
-    fi
+    k8sAccess || return
+    kubectl delete secret -n "$NS" "$SECRET_NAME"
+    kubectl delete service -n "$NS" $SERVICES
+    kubectl delete ingress -n "$NS" "$NS-local-backend"
+    kubectl delete ns "$NS"
     echo "done."
 }
