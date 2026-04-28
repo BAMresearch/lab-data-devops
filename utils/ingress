@@ -15,7 +15,7 @@ setupIngress() {
     FQDN="$5"
     SVC="$NS"
     SECRET_NAME="$NS.tls"
-    k8sAccess || return
+    k8sAccess || return 0
     namespaceExists "$NS" || kubectl create ns "$NS"
     createTLSsecret "$NS" "$SECRET_NAME" "$PUBFILE" "$KEYFILE"
     tmpfn="$(mktemp)"
@@ -30,7 +30,7 @@ teardownIngress() {
     NS="$1"
     SECRET_NAME="$NS.tls"
     SERVICES="$2"
-    k8sAccess || return
+    k8sAccess || return 0
     kubectl delete secret -n "$NS" "$SECRET_NAME"
     kubectl delete service -n "$NS" $SERVICES
     kubectl delete ingress -n "$NS" "$NS-local-backend"
