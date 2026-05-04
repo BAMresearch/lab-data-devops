@@ -1,26 +1,9 @@
-This launches the OpenBIS container from DockerHub, together with the Postgres database and a landing page with links to the ELN and the Admin interface of OpenBIS.
+This is a collection of scripts using the same mechanisms to set up systemd user-space services with backend containers via podman. The services are part of measurement orchestration, data processing and testing environments:
 
-It uses the ingress of an existing kubernetes cluster for mapping domain names to port numbers of the containers.
+- [Tiled API](https://github.com/bluesky/tiled) - A data access service for data-aware portals and data science tools
+- [OpenBIS  ](https://openbis.ch) - Digital notebook, Data management and Inventory management  
+  Launches the OpenBIS container from DockerHub, together with a Postgres database container and a landing page with links to the ELN and the Admin interface of OpenBIS.
+- [MoDaCor](https://github.com/BAMresearch/MoDaCor) - New modular data corrections for any neutron or xray technique that produces 1D or 2D scattering/diffraction/imaging data, via FastAPI
 
-## in the container:
+Currently, it uses the ingress of an existing kubernetes setup for mapping domain names to port numbers of the containers and as TLS endpoint. This is subject to change, Traefik possibly, at a later point.
 
-find / -name '*keystore*' 2>/dev/null
-/etc/openbis/dss/openBIS.keystore
-/etc/openbis/as/openBIS.keystore
-/etc/ca-certificates/update.d/jks-keystore
-/home/openbis/servers/openBIS-server/jetty/etc.default/openBIS.keystore
-/home/openbis/servers/openBIS-server/jetty-dist/modules/ssl/keystore
-/home/openbis/servers/openBIS-server/jetty-dist/demo-base/etc/keystore
-/home/openbis/servers/datastore_server/etc.default/openBIS.keystore
-
-Somehow, the key from website needs to be added to the keystore for java not to complain:
-
-keytool -import -alias <server_alias> -file <server_cert.cer> -keystore <JAVA_HOME>/lib/security/cacerts -storepass changeit
-
-PEM files need to be converted first:
-
-openssl pkcs12 -export -in chain.pem -out chain.p12 -name "mycert"
-
-keytool -importkeystore -destkeystore truststore.jks -srckeystore chain.p12 -srcstoretype PKCS12 -alias mycert
-
-(https://www.perplexity.ai/search/for-openbis-server-side-logs-h-YhMrzCisQduUnVHmP73a1Q)
