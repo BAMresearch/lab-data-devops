@@ -38,6 +38,11 @@ After=network-online.target
 ContainerName=$cname
 Image=${SVC_NAME}:$tag
 $(echo "$@" | sed -E 's/([[:space:]])([A-Z_][A-Z0-9_]*=)/\n\2/g' | sed '/^$/d; s/.*/Environment=&/')
+# data mount point
+Volume=/mnt/vsi-db:/mnt/vsi-db:rw,Z
+# user running the container has access by group membership
+PodmanArgs=--group-add keep-groups
+
 PublishPort=8700:8700
 Network=$network
 
