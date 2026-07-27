@@ -1,10 +1,12 @@
-import sys, os
+import sys, os, tomllib
+from pathlib import Path
 
 c.JupyterHub.bind_url = "http://:8000"
 c.JupyterHub.hub_ip = "0.0.0.0"
 c.JupyterHub.hub_connect_ip = "jupyterhub"
 c.JupyterHub.db_url = "sqlite:////data/jupyterhub.sqlite"
-c.JupyterHub.cleanup_servers = True  # False for production
+# False for production, allows to restart jhub while notebook containers stay alive
+c.JupyterHub.cleanup_servers = False
 c.JupyterHub.shutdown_on_logout = True
 
 c.JupyterHub.spawner_class = "dockerspawner.DockerSpawner"
@@ -16,25 +18,26 @@ c.DockerSpawner.mem_limit = "4G"
 c.DockerSpawner.cpu_limit = 2.0
 c.DockerSpawner.cmd = ["jupyterhub-singleuser"]
 
-IMAGES = {
-    "Sales forecast":  (
-        "localhost/binder-sales:latest", "/notebooks/index.ipynb"),
-    "Churn analysis":  (
-        "localhost/binder-churn:latest", "/notebooks/churn.ipynb"),
-}
+REPOS = {}
+with open("REPOS_CONTPATH", "rb") as fd:
+    REPOS = tomllib.load(fd).get("repos", [])
+    REPOS = {repo["title"]: repo for repo in REPOS}
+print(f"{REPOS=}", file=sys.stderr)
 
 # it depends on DockerSpawner applying user_options["image"] in start()
 def set_default_url(spawner):
     spawner.log.info("user_options=%r", spawner.user_options)
     selected = spawner.user_options.get("image", "")
     spawner.log.info(f"{selected=}")
-    spawner.default_url = IMAGES.get(selected, (None, "/lab"))[-1]
+    spawner.default_url = REPOS.get(selected, {}).get("index_ipynb", "/lab")
     spawner.log.info(f"{spawner.default_url=}")
 
 c.Spawner.pre_spawn_hook = set_default_url
 
 c.DockerSpawner.allowed_images = {
-        title: image for title, (image, filename) in IMAGES.items()}
+        repo["title"]: f"localhost/{repo["image_name"]}:latest"
+        for repo in REPOS.values()
+}
 
 c.DockerSpawner.read_only_volumes = {
     # "/host-mountpoint/network/share": "/container/path",

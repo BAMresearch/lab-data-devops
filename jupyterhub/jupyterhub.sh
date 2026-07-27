@@ -4,6 +4,8 @@
 # run this in the users home-dir, like this:
 #   sh /opt/lab-data-devops/jupyterhub/jupyterhub.sh up
 
+set -e
+
 scriptpath="$(readlink -f "$0")"
 scriptdir="$(dirname "$scriptpath")"
 scriptname="$(basename "$scriptpath")"
@@ -24,6 +26,17 @@ addContConfig()
     grep -Fq "$text" "$contcfg" || echo "$text" >> "$contcfg"
 }
 
+getReposPath()
+{
+    python3 << PYTHON
+from pathlib import Path
+repos_path = {$JHUB_VOL}
+repos_path = tuple(Path(hostpath).parent for hostpath, contpath in repos_path.items()
+                        if Path(contpath).name == 'outputs')
+print(repos_path[0] / 'repos.toml')
+PYTHON
+}
+
 genJHubSvc()
 {
     local cname="$1"
@@ -35,9 +48,23 @@ genJHubSvc()
         systemctl --user restart podman.socket
 
     mkdir -p ~/jupyterhub/config ~/jupyterhub/data
+    local REPOS_HOSTPATH="$(getReposPath)"
+    local REPOS_CONTPATH="/$(basename "$REPOS_HOSTPATH")"
+    if [ ! -f "$REPOS_HOSTPATH" ]; then
+        # create an example placeholder
+        echo "Repos config file not found, creating '$REPOS_HOSTPATH'."
+        cat > "$REPOS_HOSTPATH" << EOF
+[[repos]]
+title = "Sales forecast"
+url = "https://github.com/binder-examples/requirements"
+image_name = "binder-sales"
+index_ipynb = "/notebooks/index.ipynb"
+EOF
+    fi
     local hubcfg="$HOME/jupyterhub/config/jupyterhub_config.py"
     cp "$scriptdir/jupyterhub_config.py" "$hubcfg"
-    formatTextFile "$hubcfg" CONT_NETWORK JHUB_FQDN JHUB_ADMIN GITLAB_FQDN GITLAB_GROUP JHUB_VOL_RO JHUB_VOL
+    formatTextFile "$hubcfg" CONT_NETWORK JHUB_FQDN JHUB_ADMIN GITLAB_FQDN \
+                            GITLAB_GROUP JHUB_VOL_RO JHUB_VOL REPOS_CONTPATH
 
     # apply settings which can't be ingested by other means
     local contcfg="$HOME/.config/containers/containers.conf"
@@ -64,6 +91,7 @@ ContainerName=$cname
 Image=${SVC_NAME}-custom:$tag
 Volume=%h/jupyterhub/config:/srv/jupyterhub:Z
 Volume=%h/jupyterhub/data:/data:Z
+Volume=${REPOS_HOSTPATH}:${REPOS_CONTPATH}:ro
 Volume=%t/podman/podman.sock:/run/podman/podman.sock:Z
 Environment=DOCKER_HOST=unix:///run/podman/podman.sock
 EnvironmentFile=%h/jupyterhub/gitlab.env
@@ -107,7 +135,9 @@ elif [ "$1" = down ];then # clean up in reversed order
 
     teardownIngress "$SVC_NAME" "$CONT_SRV_NAME"
     if [ "$2" != ingress ]; then
+        podman ps -aq --filter name='^jupyter-' | xargs -r podman rm -f
         systemctl --user stop "$CONT_SRV_NAME"
+        echo "Notebooks cleared, hub stopped."
     fi
 
 elif [ "$1" = reset ]; then
