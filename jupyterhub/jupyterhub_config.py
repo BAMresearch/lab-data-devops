@@ -24,6 +24,7 @@ with open("REPOS_CONTPATH", "rb") as fd:
     REPOS = {repo["title"]: repo for repo in REPOS}
 print(f"{REPOS=}", file=sys.stderr)
 
+
 # it depends on DockerSpawner applying user_options["image"] in start()
 def set_default_url(spawner):
     spawner.log.info("user_options=%r", spawner.user_options)
@@ -32,11 +33,11 @@ def set_default_url(spawner):
     spawner.default_url = REPOS.get(selected, {}).get("index_ipynb", "/lab")
     spawner.log.info(f"{spawner.default_url=}")
 
+
 c.Spawner.pre_spawn_hook = set_default_url
 
 c.DockerSpawner.allowed_images = {
-        repo["title"]: f"localhost/{repo["image_name"]}:latest"
-        for repo in REPOS.values()
+    repo["title"]: f"localhost/{repo['image_name']}:latest" for repo in REPOS.values()
 }
 
 c.DockerSpawner.read_only_volumes = {
@@ -47,17 +48,25 @@ c.DockerSpawner.volumes = {
     # "/host-storage/jupyterhub/{username}": "/home/jupyterhub/outputs",
     JHUB_VOL
 }
-c.JupyterHub.services = [{
-    "name": "idle-culler",
-#    "command": [sys.executable, "-m", "jupyterhub_idle_culler",
-#                "--timeout=3600", "--cull-every=300", "--max-age=43200"],
-}]
-c.JupyterHub.load_roles = [{
-    "name": "idle-culler",
-    "scopes": ["list:users", "read:users:activity",
-               "read:servers", "delete:servers"],
-    "services": ["idle-culler"],
-}]
+c.JupyterHub.services = [
+    {
+        "name": "idle-culler",
+        #    "command": [sys.executable, "-m", "jupyterhub_idle_culler",
+        #                "--timeout=3600", "--cull-every=300", "--max-age=43200"],
+    }
+]
+c.JupyterHub.load_roles = [
+    {
+        "name": "idle-culler",
+        "scopes": [
+            "list:users",
+            "read:users:activity",
+            "read:servers",
+            "delete:servers",
+        ],
+        "services": ["idle-culler"],
+    }
+]
 c.Spawner.default_url = "/lab"
 c.Spawner.args = [
     "--MappingKernelManager.cull_idle_timeout=1800",
@@ -72,7 +81,7 @@ c.GitLabOAuthenticator.client_id = os.environ["GITLAB_CLIENT_ID"]
 c.GitLabOAuthenticator.client_secret = os.environ["GITLAB_CLIENT_SECRET"]
 
 c.GitLabOAuthenticator.scope = ["read_user"]
-#c.GitLabOAuthenticator.allowed_gitlab_groups = {"GITLAB_GROUP"}
+# c.GitLabOAuthenticator.allowed_gitlab_groups = {"GITLAB_GROUP"}
 c.GitLabOAuthenticator.allow_all = True
 
 c.GitLabOAuthenticator.login_service = "GITLAB_FQDN"
