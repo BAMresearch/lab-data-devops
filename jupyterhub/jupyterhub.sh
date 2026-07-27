@@ -49,22 +49,23 @@ genJHubSvc()
 
     mkdir -p ~/jupyterhub/config ~/jupyterhub/data
     local REPOS_HOSTPATH="$(getReposPath)"
-    local REPOS_CONTPATH="/$(basename "$REPOS_HOSTPATH")"
     if [ ! -f "$REPOS_HOSTPATH" ]; then
         # create an example placeholder
         echo "Repos config file not found, creating '$REPOS_HOSTPATH'."
         cat > "$REPOS_HOSTPATH" << EOF
-[[repos]]
+[[repo]]
 title = "Sales forecast"
 url = "https://github.com/binder-examples/requirements"
-image_name = "binder-sales"
 index_ipynb = "/notebooks/index.ipynb"
 EOF
     fi
     local hubcfg="$HOME/jupyterhub/config/jupyterhub_config.py"
     cp "$scriptdir/jupyterhub_config.py" "$hubcfg"
+    # the repos manifest will be copied to config folder (=$HOME in container)
+    local REPOS_FILENAME="$(basename "$REPOS_HOSTPATH")"
+    local REPOS_PATH="\~/$REPOS_FILENAME"
     formatTextFile "$hubcfg" CONT_NETWORK JHUB_FQDN JHUB_ADMIN GITLAB_FQDN \
-                            GITLAB_GROUP JHUB_VOL_RO JHUB_VOL REPOS_CONTPATH
+                            GITLAB_GROUP JHUB_VOL_RO JHUB_VOL REPOS_PATH
 
     # apply settings which can't be ingested by other means
     local contcfg="$HOME/.config/containers/containers.conf"
@@ -81,7 +82,7 @@ EOF
     local contpath="$HOME/.config/containers/systemd"
     mkdir -p "$contpath"
 
-cat > "$contpath/$cname.container" << EOF
+    cat > "$contpath/$cname.container" << EOF
 [Unit]
 Description=$(python3 -c "print('$SVC_NAME'.title())") Server
 After=network-online.target
@@ -91,7 +92,6 @@ ContainerName=$cname
 Image=${SVC_NAME}-custom:$tag
 Volume=%h/jupyterhub/config:/srv/jupyterhub:Z
 Volume=%h/jupyterhub/data:/data:Z
-Volume=${REPOS_HOSTPATH}:${REPOS_CONTPATH}:ro
 Volume=%t/podman/podman.sock:/run/podman/podman.sock:Z
 Environment=DOCKER_HOST=unix:///run/podman/podman.sock
 EnvironmentFile=%h/jupyterhub/gitlab.env
@@ -114,8 +114,77 @@ RestartSec=5s
 WantedBy=default.target
 EOF
     chmod o-rwx "$contpath/$cname.container"
+
+    local systemdpath="$HOME/.config/systemd/user/"
+    mkdir -p "$systemdpath"
+
+    local REPOS_BUILT="%h/jupyterhub/config/${REPOS_FILENAME}"
+    cat > "$systemdpath/jupyterhub-reconfig.timer" << EOF
+[Unit]
+Description=Poll repos manifest (on CIFS mount) for changes (inotify unreliable)
+
+[Timer]
+# every 5 Minutes
+OnCalendar=*:0/5
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+
+    cat > "$systemdpath/jupyterhub-reconfig.service" << EOF
+[Unit]
+Description=Reconfigure JupyterHub if repos manifest changed
+
+[Service]
+Type=oneshot
+
+# gate: proceed only if repos.toml is newer than the stamp.
+# exit 0 -> run ExecStart; exit 1 -> skip cleanly (not a failure)
+ExecCondition=/bin/bash -c '[ "\$(stat -c %%Y $REPOS_BUILT)" -gt "\$(cat %h/jupyterhub/config/.last-reconfig 2>/dev/null || echo 0)" ]'
+
+# validate — fatal, aborts before building if the TOML is malformed
+ExecStartPre=%h/.venvs/r2d/bin/python -c "import tomllib; tomllib.load(open('$REPOS_BUILT','rb'))"
+
+# build (reuses the one build unit;
+# non-fatal so a bad repo doesn't block the restart)
+ExecStart=-/usr/bin/systemctl --user start --wait jupyterhub-build.service
+
+# apply new allowed_images / notebook mapping
+ExecStart=/usr/bin/systemctl --user restart jupyterhub
+
+# record that we acted on this mtime (local disk, not the CIFS mount)
+ExecStartPost=/bin/bash -c 'stat -c %%Y $REPOS_BUILT > %h/jupyterhub/config/.last-reconfig'
+EOF
+
+    cat > "$systemdpath/jupyterhub-build.service" << EOF
+[Unit]
+Description=Rebuild binder images (no hub restart), triggered by upstream changes
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/flock -n %t/jhub-build.lock \
+    %h/.venvs/r2d/bin/python $scriptdir/build-images.py \
+    --infile ${REPOS_HOSTPATH} \
+    --outfile ${REPOS_BUILT} \
+    --venv %h/.venvs/r2d
+EOF
+
+    cat > "$systemdpath/jupyterhub-build.timer" << EOF
+[Unit]
+Description=Check repos for upstream changes
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+
     # make the new container (or updates) know to systemctl
     systemctl --user daemon-reload
+    systemctl --user enable --now jupyterhub-reconfig.timer jupyterhub-build.timer
 }
 
 if [ "$1" = up ]; then

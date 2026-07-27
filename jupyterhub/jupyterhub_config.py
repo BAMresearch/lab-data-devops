@@ -19,9 +19,9 @@ c.DockerSpawner.cpu_limit = 2.0
 c.DockerSpawner.cmd = ["jupyterhub-singleuser"]
 
 REPOS = {}
-with open("REPOS_CONTPATH", "rb") as fd:
-    REPOS = tomllib.load(fd).get("repos", [])
-    REPOS = {repo["title"]: repo for repo in REPOS}
+with open(Path("REPOS_PATH").expanduser(), "rb") as fd:
+    REPOS = tomllib.load(fd).get("repo", [])
+    REPOS = {repo["label"]: repo for repo in REPOS}
 print(f"{REPOS=}", file=sys.stderr)
 
 
@@ -37,7 +37,7 @@ def set_default_url(spawner):
 c.Spawner.pre_spawn_hook = set_default_url
 
 c.DockerSpawner.allowed_images = {
-    repo["title"]: f"localhost/{repo['image_name']}:latest" for repo in REPOS.values()
+    repo["label"]: f"{repo['image']}" for repo in REPOS.values()
 }
 
 c.DockerSpawner.read_only_volumes = {

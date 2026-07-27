@@ -13,7 +13,9 @@ It assumes, rootless podman is already set up.
 ## Verify the build toolchain for Notebook containers
 
     python3 -m venv ~/.venvs/r2d
-    ~/.venvs/r2d/bin/pip install jupyter-repo2docker
+    ~/.venvs/r2d/bin/pip install jupyter-repo2docker tomli_w
+    # link podman to docker, they are compatible, mostly
+    cd /usr/local/bin && sudo ln -s $(command -v podman) docker
     # a test to verify building works:
     ~/.venvs/r2d/bin/jupyter-repo2docker --no-run \
         --image-name localhost/binder-sales:latest \
