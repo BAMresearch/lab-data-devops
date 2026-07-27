@@ -11,7 +11,7 @@ scriptname="$(basename "$scriptpath")"
 . "$scriptdir/../utils/deploy"
 . "$scriptdir/../utils/ingress"
 
-loadSiteConfig JHUB_FQDN JHUB_PUB JHUB_KEY JHUB_ADMIN GITLAB_FQDN GITLAB_GROUP || exit 1
+loadSiteConfig JHUB_FQDN JHUB_PUB JHUB_KEY JHUB_ADMIN GITLAB_FQDN GITLAB_GROUP JHUB_VOL_RO JHUB_VOL || exit 1
 
 SVC_NAME="${scriptname%.*}"  # script name without extension
 CONT_SRV_NAME="${SVC_NAME}"
@@ -37,7 +37,7 @@ genJHubSvc()
     mkdir -p ~/jupyterhub/config ~/jupyterhub/data
     local hubcfg="$HOME/jupyterhub/config/jupyterhub_config.py"
     cp "$scriptdir/jupyterhub_config.py" "$hubcfg"
-    formatTextFile "$hubcfg" CONT_NETWORK JHUB_FQDN JHUB_ADMIN GITLAB_FQDN GITLAB_GROUP
+    formatTextFile "$hubcfg" CONT_NETWORK JHUB_FQDN JHUB_ADMIN GITLAB_FQDN GITLAB_GROUP JHUB_VOL_RO JHUB_VOL
 
     # apply settings which can't be ingested by other means
     local contcfg="$HOME/.config/containers/containers.conf"

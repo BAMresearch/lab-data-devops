@@ -37,10 +37,12 @@ c.DockerSpawner.allowed_images = {
         title: image for title, (image, filename) in IMAGES.items()}
 
 c.DockerSpawner.read_only_volumes = {
-    "/host-mountpoint/network/share": "/container/path",
+    # "/host-mountpoint/network/share": "/container/path",
+    JHUB_VOL_RO
 }
 c.DockerSpawner.volumes = {
-    "/host-storage/jupyterhub/{username}": "/home/jupyterhub/outputs",
+    # "/host-storage/jupyterhub/{username}": "/home/jupyterhub/outputs",
+    JHUB_VOL
 }
 c.JupyterHub.services = [{
     "name": "idle-culler",
