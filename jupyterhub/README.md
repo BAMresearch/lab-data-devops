@@ -10,12 +10,18 @@ It assumes, rootless podman is already set up.
     sudo machinectl shell jupyterhub@ /bin/bash
     systemctl --user start podman.socket
 
+## Verify the build toolchain for Notebook containers
+
     python3 -m venv ~/.venvs/r2d
     ~/.venvs/r2d/bin/pip install jupyter-repo2docker
     # a test to verify building works:
     ~/.venvs/r2d/bin/jupyter-repo2docker --no-run \
         --image-name localhost/binder-sales:latest \
         https://github.com/binder-examples/requirements
+
+## Build the jupyterhub image with the customized [Dockerfile](Dockerfile)
+
+    podman build -t localhost/jupyterhub-custom:latest .
 
 ## Fix `oom_score`
 
