@@ -95,6 +95,13 @@ def main(argv=None):
                     "index_ipynb": r.get("index_ipynb", "/lab"),
                 }
             )
+            # start the container once headless so first-run caches land in a committed layer
+            # or at least prove the cold start completes
+            subprocess.run(["podman", "run", "--rm",
+                            "-e", "JUPYTERHUB_SERVICE_URL=http://localhost:8888",
+                            "-e", "JUPYTERHUB_API_TOKEN=dummy",
+                            tag, "jupyterhub-singleuser", "--version"],
+                           check=True, timeout=120)
         except BUILD_ERRORS as e:
             print(f"{label}: build failed: {e}", file=sys.stderr)
             print(e.stderr, file=sys.stderr)
