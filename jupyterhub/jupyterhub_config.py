@@ -69,8 +69,8 @@ c.JupyterHub.load_roles = [
 ]
 c.Spawner.default_url = "/lab"
 c.Spawner.args = [
-    "--MappingKernelManager.cull_idle_timeout=1800",
-    "--MappingKernelManager.cull_interval=120",
+    "--ServerApp.MappingKernelManager.cull_idle_timeout=1800",
+    "--ServerApp.MappingKernelManager.cull_interval=120",
 ]
 
 c.JupyterHub.authenticator_class = "gitlab"
