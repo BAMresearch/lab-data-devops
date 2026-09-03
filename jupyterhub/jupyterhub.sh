@@ -163,6 +163,8 @@ Description=Rebuild binder images (no hub restart), triggered by upstream change
 
 [Service]
 Type=oneshot
+Environment=GIT_TERMINAL_PROMPT=0
+Environment=GIT_ASKPASS=/bin/true
 ExecStart=/usr/bin/flock -n %t/jhub-build.lock \
     %h/.venvs/r2d/bin/python $scriptdir/build-images.py \
     --infile ${REPOS_HOSTPATH} \
