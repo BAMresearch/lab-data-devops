@@ -67,6 +67,7 @@ def main(argv=None):
 
     BUILD_ERRORS = (subprocess.CalledProcessError, subprocess.TimeoutExpired, RuntimeError)
 
+    timeoutSec = 150
     for i, r in enumerate(cfg.get("repo", [])):
         try:
             label = r["label"]
@@ -97,11 +98,22 @@ def main(argv=None):
             )
             # start the container once headless so first-run caches land in a committed layer
             # or at least prove the cold start completes
-            subprocess.run(["podman", "run", "--rm",
-                            "-e", "JUPYTERHUB_SERVICE_URL=http://localhost:8888",
-                            "-e", "JUPYTERHUB_API_TOKEN=dummy",
-                            tag, "jupyterhub-singleuser", "--version"],
-                           check=True, timeout=120)
+            # Bounded by `timeout` with SIGTERM (graceful) rather than Python's SIGKILL,
+            # so podman tears down its container/layer cleanly if the limit is hit."""
+            #subprocess.run(["podman", "run", "--rm",
+            #                "-e", "JUPYTERHUB_SERVICE_URL=http://localhost:8888",
+            #                "-e", "JUPYTERHUB_API_TOKEN=dummy",
+            #                tag, "jupyterhub-singleuser", "--version"],
+            #               check=True, timeout=120)
+            cmd = ["timeout", "--signal=TERM", str(timeoutSec),
+                   "podman", "run", "--rm",
+                   "-e", "JUPYTERHUB_SERVICE_URL=http://localhost:8888",
+                   "-e", "JUPYTERHUB_API_TOKEN=dummy",
+                   tag, "jupyterhub-singleuser", "--version"]
+            r = subprocess.run(cmd, capture_output=True, text=True,
+                               timeout=int(timeoutSec*1.2),  # backstop only, > the 60s TERM
+                               check=True)
+            print(f"warm up {label}:", r.stdout.strip(), file=sys.stderr)
         except BUILD_ERRORS as e:
             print(f"{label}: build failed: {e}", file=sys.stderr)
             print(e.stderr, file=sys.stderr)
