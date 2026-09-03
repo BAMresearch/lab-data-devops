@@ -49,7 +49,8 @@ def exists(tag):
 
 def remote_sha(url, ref):
     args = ["git", "ls-remote", url, ref]
-    out = subprocess.run(args, capture_output=True, text=True, check=True)
+    out = subprocess.run(args, capture_output=True,
+                         text=True, check=True, timeout=30)
     if not out.stdout.strip():
         raise RuntimeError(f"ref {ref!r} not found at {url}")
     return out.stdout.split()[0]
@@ -59,13 +60,24 @@ def main(argv=None):
     args = parse_args(argv)
     r2d = Path(args.venv) / "bin" / "jupyter-repo2docker"
     if not os.access(r2d, os.X_OK):
-        sys.exit(f"repo2docker not found or not executable at {r2d} (check --venv)")
+        sys.exit(f"repo2docker not found or not executable at {
+                 r2d} (check --venv)")
     cfg = {}
     with open(args.infile, "rb") as fd:
         cfg = tomllib.load(fd)
     built, failed = [], []
 
-    BUILD_ERRORS = (subprocess.CalledProcessError, subprocess.TimeoutExpired, RuntimeError)
+    BUILD_ERRORS = (subprocess.CalledProcessError,
+                    subprocess.TimeoutExpired, RuntimeError)
+
+    def append_built(label, image, repo):
+        built.append(
+            {
+                "label": label,
+                "image": image,
+                "index_ipynb": repo.get("index_ipynb", "/lab"),
+            }
+        )
 
     timeoutSec = 150
     for i, r in enumerate(cfg.get("repo", [])):
@@ -86,21 +98,17 @@ def main(argv=None):
         try:
             sha = remote_sha(url, ref)
             tag = f"{base}:{sha[:12]}"
+            latest = f"{base}:latest"
             if args.force or not exists(tag):
-                subprocess.run([r2d, "--no-run", "--image-name", tag, "--ref", sha, url], check=True)
-            subprocess.run(["podman", "tag", tag, f"{base}:latest"], check=True)
-            built.append(
-                {
-                    "label": label,
-                    "image": f"{base}:latest",
-                    "index_ipynb": r.get("index_ipynb", "/lab"),
-                }
-            )
+                subprocess.run([r2d, "--no-run", "--image-name",
+                               tag, "--ref", sha, url], check=True)
+            subprocess.run(["podman", "tag", tag, latest], check=True)
+            append_built(label, latest, r)
             # start the container once headless so first-run caches land in a committed layer
             # or at least prove the cold start completes
             # Bounded by `timeout` with SIGTERM (graceful) rather than Python's SIGKILL,
             # so podman tears down its container/layer cleanly if the limit is hit."""
-            #subprocess.run(["podman", "run", "--rm",
+            # subprocess.run(["podman", "run", "--rm",
             #                "-e", "JUPYTERHUB_SERVICE_URL=http://localhost:8888",
             #                "-e", "JUPYTERHUB_API_TOKEN=dummy",
             #                tag, "jupyterhub-singleuser", "--version"],
@@ -111,13 +119,19 @@ def main(argv=None):
                    "-e", "JUPYTERHUB_API_TOKEN=dummy",
                    tag, "jupyterhub-singleuser", "--version"]
             r = subprocess.run(cmd, capture_output=True, text=True,
-                               timeout=int(timeoutSec*1.2),  # backstop only, > the 60s TERM
+                               # backstop only, > the 60s TERM
+                               timeout=int(timeoutSec*1.2),
                                check=True)
             print(f"warm up {label}:", r.stdout.strip(), file=sys.stderr)
         except BUILD_ERRORS as e:
-            print(f"{label}: build failed: {e}", file=sys.stderr)
-            print(e.stderr, file=sys.stderr)
-            failed.append(label)
+            if exists(latest):
+                print(f"{label}: update failed ({e}); keeping existing image",
+                      file=sys.stderr)
+                append_built(label, latest, r)
+            else:
+                print(f"{label}: build failed: {e}", file=sys.stderr)
+                print(e.stderr, file=sys.stderr)
+                failed.append(label)
     with open(args.outfile, "wb") as fd:
         tomli_w.dump({"repo": built}, fd)
     if failed:
