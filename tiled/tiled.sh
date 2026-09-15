@@ -37,7 +37,7 @@ genTiledSvc()
     local CFG_FILE="$CFG_PATH/single_catalog_single_user.yml"
     if [ ! -f "$CFG_FILE" ]; then
         # Download the file using curl from GitHub repository
-        curl -s -o "$CFG_FILE" "https://raw.githubusercontent.com/bluesky/tiled/main/example_configs/single_catalog_single_user.yml"
+        curl -s -o "$CFG_FILE" "https://raw.githubusercontent.com/bluesky/tiled/d98571f5e1ba201d0200684cca1a86c9c978137a/example_configs/single_catalog_single_user.yml"
     fi
     dbUserPass="$(getPodmanSecret "${dbname}-pass")"
     sed -i -e '/^\s*uri/i\      uri:              '"postgresql://postgres:\${TILED_DATABASE_PASSWORD}@$dbname:5432" -e '/^\s*uri/d' "$CFG_FILE"
