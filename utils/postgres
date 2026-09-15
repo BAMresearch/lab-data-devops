@@ -28,6 +28,7 @@ Description=Postgres DB
 After=network-online.target
 
 [Container]
+User=postgres
 ContainerName=$cname
 Image=docker.io/library/postgres:$tag
 Volume=$dbpath:/var/lib/postgresql/data:rw,Z
