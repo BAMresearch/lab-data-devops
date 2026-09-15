@@ -44,6 +44,11 @@ genTiledSvc()
     dbAdminPass="$(getPodmanSecret "${dbname}-pass")"
     sed -i -e '/^\s*uri/i\      uri:              '"postgresql://postgres:\${TILED_DATABASE_PASSWORD}@$dbname:5432" -e '/^\s*uri/d' "$CFG_FILE"
     sed -i -e '/^\s*writable_storage/i\      writable_storage: '"postgresql://postgres:\${TILED_DATABASE_PASSWORD}@$dbname:5432/tiled_storage" -e '/^\s*writable_storage/d' "$CFG_FILE"
+    # wait for the DB to get ready
+    until podman exec "$dbname" psql -U postgres -d postgres -c 'SELECT 1' >/dev/null 2>&1
+    do
+        sleep 1
+    done
     # create the db if it does not exist yet
     podman exec "$dbname" psql -U postgres -d postgres \
         -tAc "SELECT 1 FROM pg_database WHERE datname='tiled_storage'" | grep -q 1 \
