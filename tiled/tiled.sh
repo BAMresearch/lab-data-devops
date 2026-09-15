@@ -29,8 +29,6 @@ genTiledSvc()
     local basepath="$3"
     local network="$4"
     local dbname="$5"
-    #local dbAdminPass="$6"
-    #local apikey="$7"
     shift 5
     systemctl --user is-active --quiet "$cname" && return
     # get internal IP of postgres, shouldn't be necessary but name resolution didnt work before
@@ -41,7 +39,7 @@ genTiledSvc()
         # Download the file using curl from GitHub repository
         curl -s -o "$CFG_FILE" "https://raw.githubusercontent.com/bluesky/tiled/main/example_configs/single_catalog_single_user.yml"
     fi
-    dbAdminPass="$(getPodmanSecret "${dbname}-pass")"
+    dbUserPass="$(getPodmanSecret "${dbname}-pass")"
     sed -i -e '/^\s*uri/i\      uri:              '"postgresql://postgres:\${TILED_DATABASE_PASSWORD}@$dbname:5432" -e '/^\s*uri/d' "$CFG_FILE"
     sed -i -e '/^\s*writable_storage/i\      writable_storage: '"postgresql://postgres:\${TILED_DATABASE_PASSWORD}@$dbname:5432/tiled_storage" -e '/^\s*writable_storage/d' "$CFG_FILE"
     # wait for the DB to get ready
@@ -53,6 +51,8 @@ genTiledSvc()
     podman exec "$dbname" psql -U postgres -d postgres \
         -tAc "SELECT 1 FROM pg_database WHERE datname='tiled_storage'" | grep -q 1 \
         || podman exec "$dbname" psql -U postgres -c "CREATE DATABASE tiled_storage"
+    # set the user password to the expected one
+    podman exec "$dbname" psql -U postgres -c "ALTER ROLE postgres WITH PASSWORD '$dbUserPass';"
     local STORAGE_PATH="$basepath/storage"
     mkdir -p "$STORAGE_PATH"
 
