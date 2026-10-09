@@ -86,6 +86,32 @@ Encrypt the file, root user can use TPM2 for that:
     systemd-creds encrypt --with-key=tpm2 ~/dns.ini "$creds_path"
     shred -u dns.ini
 
+## ipv64.de
+
+Using *certbot-dns-multi*: it is a DNS plugin for Certbot which integrates with the 117+ DNS providers from the lego ACME client, and lego supports IPv64. The plugin needs to be installed in a venv, similar to schlundtech setup. It requires *Go* compiler.
+
+    sudo pacman -S --needed go          # pip builds the plugin from Go sources
+    uv venv --system-site-packages ~/venv_certbot
+    ~/venv_certbot/bin/pip install certbot-dns-multi
+
+### Credentials file
+
+    cat > ~/dns.ini << EOF
+    # dns.ini (plaintext only temporarily, before encrypting)
+    dns_multi_provider = ipv64
+    IPV64_API_KEY = xxxxxxxx
+    # optional, default is 60 seconds
+    IPV64_PROPAGATION_TIMEOUT = 180
+    EOF
+
+Encrypt the file, root user can use TPM2 for that:
+
+    creds_path=/var/lib/certbot-renew/dns-ipv64.ini
+    creds_fn="$(basename "$creds_path")"
+    sudo install -d -o cert-upd-bot -g cert-upd-bot -m 0750 "$(dirname "$creds_path")"
+    systemd-creds encrypt --with-key=tpm2 ~/dns.ini "$creds_path"
+    shred -u dns.ini
+
 ## first time run
 
     certbot certonly -v --server https://acme-v02.api.letsencrypt.org/directory -a dns-schlundtech --dns-schlundtech-credentials ./dns-schlundtech-creds.ini -d *.$FQDN
