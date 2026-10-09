@@ -11,9 +11,8 @@ And disable the default service, if any, it gets replaced:
 
 ## Create a local user for isolation
 
-    sudo useradd -m --shell /usr/sbin/nologin cert-upd-bot
+    sudo useradd -m -d /var/lib/cert-upd-bot --shell /usr/sbin/nologin cert-upd-bot
     sudo passwd -d -l cert-upd-bot
-    sudo loginctl enable-linger cert-upd-bot
 
 or later:
 
@@ -26,11 +25,14 @@ or later:
 
 ## Hooks to run on update
 
+    sudo mkdir -p /etc/letsencrypt/renewal-hooks/{deploy,post}
     ln -s $(realpath certbot-renew-deploy-hook.sh) /etc/letsencrypt/renewal-hooks/deploy/certbot-renew-deploy-hook.sh
     ln -s $(realpath certbot-renew-post-hook.sh) /etc/letsencrypt/renewal-hooks/post/certbot-renew-post-hook.sh
+    sudo chown -R cert-upd-bot:cert-upd-bot /etc/letsencrypt/
 
 ## Python venv for plugins below
 
+    machinectl shell cert-upd-bot@ /bin/bash
     python3 -m venv --system-site-packages ~/venv_certbot
 
 ## Install the service
@@ -38,25 +40,9 @@ or later:
     REPO=$(realpath .)
     UNITDIR=/etc/systemd/system
 
-    # 1. Link template units (keep the exact file names, otherwise systemd treats them as aliases)
+    # Link template units (keep the exact file names, otherwise systemd treats them as aliases)
     sudo ln -s "$REPO/certbot-renew@.service" "$UNITDIR/"
     sudo ln -s "$REPO/certbot-renew@.timer"   "$UNITDIR/"
-
-    # 2. Drop-in: real directory, symlinked .conf inside
-    sudo mkdir -p "$UNITDIR/certbot-renew@schlundtech.service.d"
-    sudo ln -s "$REPO/certbot-renew@schlundtech.service.d/provider.conf" \
-            "$UNITDIR/certbot-renew@schlundtech.service.d/"
-
-    # 3. Reload and enable the instance by name
-    sudo systemctl daemon-reload
-    sudo systemctl enable --now certbot-renew@schlundtech.timer
-
-Verify:
-
-    systemctl cat certbot-renew@schlundtech.service   # shows template + drop-in
-    systemctl list-timers 'certbot-renew@*'
-    sudo systemctl start certbot-renew@schlundtech.service   # test run without waiting for the timer
-    journalctl -u certbot-renew@schlundtech.service
 
 ## For Schlundtech
 
@@ -79,11 +65,16 @@ For renewal config below:
     dns_schlundtech_token = SECRET-2FA-TOKEN
     EOF
 
-### ipv64.de
+### systemd drop-in
 
-Using *certbot-dns-multi*: it is a DNS plugin for Certbot which integrates with the 117+ DNS providers from the lego ACME client, and lego supports IPv64. The plugin needs to be installed in a venv, similar to schlundtech setup. It requires *Go* compiler.
+    sudo mkdir -p "$UNITDIR/certbot-renew@schlundtech.service.d"
+    sudo ln -s "$REPO/certbot-renew@schlundtech.service.d/provider.conf" \
+            "$UNITDIR/certbot-renew@schlundtech.service.d/"
 
-    sudo pacman -S --needed go          # pip builds the plugin from Go sources
+## ipv64.net
+
+Using *certbot-dns-multi*: it is a DNS plugin for Certbot which integrates with the 117+ DNS providers from the lego ACME client, and lego supports IPv64. The plugin needs to be installed in a venv, similar to schlundtech setup. It may require the *Go* compiler.
+
     ~/venv_certbot/bin/pip install certbot-dns-multi
 
 For renewal config below:
@@ -99,6 +90,12 @@ For renewal config below:
     # optional, default is 60 seconds
     IPV64_PROPAGATION_TIMEOUT = 180
     EOF
+
+### systemd drop-in
+
+    sudo mkdir -p "$UNITDIR/certbot-renew@ipv64.service.d"
+    sudo ln -s "$REPO/certbot-renew@ipv64.service.d/provider.conf" \
+            "$UNITDIR/certbot-renew@ipv64.service.d/"
 
 ## Encrypt credentials file, put in place
 
@@ -127,7 +124,20 @@ Make the chosen plugin known to the certbot configuration:
         /^\s*dns_schlundtech_credentials\s*=/d
     }" /etc/letsencrypt/renewal/$FQDN.conf
 
-## first time run
+## Final reload and check
+
+    # Reload and enable the instance by name
+    sudo systemctl daemon-reload
+    sudo systemctl enable --now certbot-renew@schlundtech.timer
+
+Verify:
+
+    systemctl cat certbot-renew@schlundtech.service   # shows template + drop-in
+    systemctl list-timers 'certbot-renew@*'
+    sudo systemctl start certbot-renew@schlundtech.service   # test run without waiting for the timer
+    journalctl -u certbot-renew@schlundtech.service
+
+## first time cert issue
 
     certbot certonly -v --server https://acme-v02.api.letsencrypt.org/directory -a dns-schlundtech --dns-schlundtech-credentials ./dns-schlundtech-creds.ini -d *.$FQDN
 
