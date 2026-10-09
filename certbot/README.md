@@ -71,7 +71,7 @@ Needs to be run from there for loading it.
 
 ### Credentials file
 
-    cat > ~/dns-schlundtech-creds.ini << EOF
+    cat > ~/dns.ini << EOF
     dns_schlundtech_user = 54321
     dns_schlundtech_password = PASSWORD
     dns_schlundtech_context = 10
@@ -80,21 +80,11 @@ Needs to be run from there for loading it.
 
 Encrypt the file, root user can use TPM2 for that:
 
-    creds_path=/var/lib/certbot-renew/dns-schlundtech-creds.ini
+    creds_path=/var/lib/certbot-renew/dns-schlundtech.ini
     creds_fn="$(basename "$creds_path")"
     sudo install -d -o cert-upd-bot -g cert-upd-bot -m 0750 "$(dirname "$creds_path")"
-    systemd-creds encrypt --with-key=tpm2 ~/dns-schlundtech-creds.ini "$creds_path"
-
-Add it to the systemd service unit:
-
-    sed -i -e '/oneshot/aStateDirectory=%N' \
-        -e "/StateDirectory/aLoadCredentialEncrypted=${creds_fn}:%S/%N/${creds_fn}" \
-        -e "s#^\(ExecStart=\).*#\1/opt/venv_certbot/bin/python /usr/bin/certbot renew#" \
-        /usr/lib/systemd/system/certbot-renew.service
-
-Make it known to the certbot configuration:
-
-    sed -i "s#^\(dns_schlundtech_credentials\s\+=\s\+\).*#\1/run/credentials/certbot-renew.service/${creds_fn}#" /etc/letsencrypt/renewal/$FQDN.conf
+    systemd-creds encrypt --with-key=tpm2 ~/dns.ini "$creds_path"
+    shred -u dns.ini
 
 ## first time run
 
