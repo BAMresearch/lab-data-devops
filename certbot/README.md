@@ -33,6 +33,10 @@ Set the domain for this configuration:
     ln -s $(realpath certbot-renew-deploy-hook.sh) /etc/letsencrypt/renewal-hooks/deploy/certbot-renew-deploy-hook.sh
     ln -s $(realpath certbot-renew-post-hook.sh) /etc/letsencrypt/renewal-hooks/post/certbot-renew-post-hook.sh
 
+## Python venv for plugins below
+
+    python3 -m venv --system-site-packages ~/venv_certbot
+
 ## Install the service
 
     REPO=$(realpath .)
@@ -63,11 +67,8 @@ Verify:
 Installing it as a Python module in a custom venv.
 Needs to be run from there for loading it.
 
-    cd /usr/src/
     git clone https://github.com/wilfriedwolf/certbot-dns-schlundtech.git
-    uv venv --system-site-packages ~/venv_certbot
-    . ~/venv_certbot/bin/activate
-    uv pip install --no-cache-dir --editable /usr/src/certbot-dns-schlundtech
+    ~/venv_certbot/bin/pip install --no-cache-dir --editable certbot-dns-schlundtech
 
 ### Credentials file
 
@@ -91,7 +92,6 @@ Encrypt the file, root user can use TPM2 for that:
 Using *certbot-dns-multi*: it is a DNS plugin for Certbot which integrates with the 117+ DNS providers from the lego ACME client, and lego supports IPv64. The plugin needs to be installed in a venv, similar to schlundtech setup. It requires *Go* compiler.
 
     sudo pacman -S --needed go          # pip builds the plugin from Go sources
-    uv venv --system-site-packages ~/venv_certbot
     ~/venv_certbot/bin/pip install certbot-dns-multi
 
 ### Credentials file
