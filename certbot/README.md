@@ -20,10 +20,6 @@ or later:
     sudo usermod --shell /usr/sbin/nologin cert-upd-bot
     sudo passwd -l cert-upd-bot
 
-Set the domain for this configuration:
-
-    export FQDN=<your domain>
-
 ## A group for managing access to certificates
 
     groupadd letsencrypt -U cert-upd-bot,traefik,...
@@ -70,6 +66,10 @@ Needs to be run from there for loading it.
     git clone https://github.com/wilfriedwolf/certbot-dns-schlundtech.git
     ~/venv_certbot/bin/pip install --no-cache-dir --editable certbot-dns-schlundtech
 
+For renewal config below:
+
+    AUTHENTICATOR=dns-schlundtech
+
 ### Credentials file
 
     cat > ~/dns.ini << EOF
@@ -79,20 +79,16 @@ Needs to be run from there for loading it.
     dns_schlundtech_token = SECRET-2FA-TOKEN
     EOF
 
-Encrypt the file, root user can use TPM2 for that:
-
-    creds_path=/var/lib/certbot-renew/dns-schlundtech.ini
-    creds_fn="$(basename "$creds_path")"
-    sudo install -d -o cert-upd-bot -g cert-upd-bot -m 0750 "$(dirname "$creds_path")"
-    systemd-creds encrypt --with-key=tpm2 ~/dns.ini "$creds_path"
-    shred -u dns.ini
-
-## ipv64.de
+### ipv64.de
 
 Using *certbot-dns-multi*: it is a DNS plugin for Certbot which integrates with the 117+ DNS providers from the lego ACME client, and lego supports IPv64. The plugin needs to be installed in a venv, similar to schlundtech setup. It requires *Go* compiler.
 
     sudo pacman -S --needed go          # pip builds the plugin from Go sources
     ~/venv_certbot/bin/pip install certbot-dns-multi
+
+For renewal config below:
+
+    AUTHENTICATOR=dns-multi
 
 ### Credentials file
 
@@ -104,13 +100,32 @@ Using *certbot-dns-multi*: it is a DNS plugin for Certbot which integrates with 
     IPV64_PROPAGATION_TIMEOUT = 180
     EOF
 
+## Encrypt credentials file, put in place
+
 Encrypt the file, root user can use TPM2 for that:
 
-    creds_path=/var/lib/certbot-renew/dns-ipv64.ini
+    # put in StateDirectory of the service
+    creds_path=/var/lib/certbot-renew/dns-provider.ini
     creds_fn="$(basename "$creds_path")"
     sudo install -d -o cert-upd-bot -g cert-upd-bot -m 0750 "$(dirname "$creds_path")"
     systemd-creds encrypt --with-key=tpm2 ~/dns.ini "$creds_path"
     shred -u dns.ini
+    # let it be owned by cert-upd-bot
+    chown cert-upd-bot:cert-upd-bot "$creds_path" && chmod 640 "$creds_path"
+
+## Certbot renewal config
+
+Make the chosen plugin known to the certbot configuration:
+
+    # Set the domain for this configuration
+    FQDN=<your domain>
+    sed -i.bak "/^\[renewalparams\]/,/^\[/{
+        /^\[renewalparams\]/a\
+        authenticator = $AUTHENTICATOR\n\
+        dns_schlundtech_credentials = /run/credentials/certbot-renew.service/${creds_fn}
+        /^\s*authenticator\s*=/d
+        /^\s*dns_schlundtech_credentials\s*=/d
+    }" /etc/letsencrypt/renewal/$FQDN.conf
 
 ## first time run
 
