@@ -1,0 +1,47 @@
+[Unit]
+Description=Renew certificates via DNS-01 (%i)
+Documentation=https://eff-certbot.readthedocs.io/en/stable/
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=cert-upd-bot
+StateDirectory=%p
+
+# Security settings for systemd running as root, optional but recommended to improve security. You
+# can disable individual settings if they cause problems for your use case. For more details, see
+# the systemd manual: https://www.freedesktop.org/software/systemd/man/systemd.exec.html
+LockPersonality=true
+MemoryDenyWriteExecute=yes
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectClock=yes
+ProtectControlGroups=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+# You may need to disable this if you're using the LVM hook. But an alternative
+# might be to leave this enabled and preload the necessary kernel modules like
+# "dm_snapshot" at boot, so this service doesn't need to load them on demand.
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+# To restrict write access further, change "ProtectSystem" to "strict" and
+# uncomment "ReadWritePaths", "TemporaryFileSystem", "BindPaths" and
+# "BindReadOnlyPaths". Then add any local repository paths to the list of
+# "ReadWritePaths". This leaves most of the filesystem read-only.
+ProtectSystem=full
+ReadWritePaths=/etc/letsencrypt
+CapabilityBoundingSet=""
+
+PrivateTmp=true
+
+[Install]
+WantedBy=timers.target
