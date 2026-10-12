@@ -34,6 +34,7 @@ or later:
 
     machinectl shell cert-upd-bot@ /bin/bash
     python3 -m venv --system-site-packages ~/venv_certbot
+    ~/venv_certbot/bin/pip install certbot
 
 ## Install the service
 
@@ -99,16 +100,24 @@ For renewal config below:
 
 ## Encrypt credentials file, put in place
 
+    PROVIDER=<ipv64 or schlundtech>
+
 Encrypt the file, root user can use TPM2 for that:
 
     # put in StateDirectory of the service
-    creds_path=/var/lib/certbot-renew/dns-provider.ini
+    creds_path=/var/lib/certbot-renew/dns-${PROVIDER}.ini
     creds_fn="$(basename "$creds_path")"
     sudo install -d -o cert-upd-bot -g cert-upd-bot -m 0750 "$(dirname "$creds_path")"
     systemd-creds encrypt --with-key=tpm2 ~/dns.ini "$creds_path"
-    shred -u dns.ini
     # let it be owned by cert-upd-bot
     chown cert-upd-bot:cert-upd-bot "$creds_path" && chmod 640 "$creds_path"
+
+### first time cert issue
+
+    sudo install -d -o cert-upd-bot -g cert-upd-bot -m 0750 /var/{log,lib}/letsencrypt
+
+    ~/venv_certbot/bin/python /usr/bin/certbot certonly -v --server https://acme-v02.api.letsencrypt.org/directory -a dns-schlundtech --dns-schlundtech-credentials ~/dns.ini -d *.$FQDN
+    shred -u ~/dns.ini
 
 ## Certbot renewal config
 
@@ -119,26 +128,20 @@ Make the chosen plugin known to the certbot configuration:
     sed -i.bak "/^\[renewalparams\]/,/^\[/{
         /^\[renewalparams\]/a\
         authenticator = $AUTHENTICATOR\n\
-        dns_schlundtech_credentials = /run/credentials/certbot-renew.service/${creds_fn}
+        ${AUTHENTICATOR}_credentials = /run/credentials/certbot-renew.service/${creds_fn}
         /^\s*authenticator\s*=/d
-        /^\s*dns_schlundtech_credentials\s*=/d
+        /^\s*dns_\w+_credentials\s*=/d
     }" /etc/letsencrypt/renewal/$FQDN.conf
 
 ## Final reload and check
 
     # Reload and enable the instance by name
     sudo systemctl daemon-reload
-    sudo systemctl enable --now certbot-renew@schlundtech.timer
+    sudo systemctl enable --now certbot-renew@${PROVIDER}.timer
 
 Verify:
 
-    systemctl cat certbot-renew@schlundtech.service   # shows template + drop-in
+    systemctl cat certbot-renew@${PROVIDER}.service   # shows template + drop-in
     systemctl list-timers 'certbot-renew@*'
-    sudo systemctl start certbot-renew@schlundtech.service   # test run without waiting for the timer
-    journalctl -u certbot-renew@schlundtech.service
-
-## first time cert issue
-
-    certbot certonly -v --server https://acme-v02.api.letsencrypt.org/directory -a dns-schlundtech --dns-schlundtech-credentials ./dns-schlundtech-creds.ini -d *.$FQDN
-
-    systemctl start certbot-renew.timer
+    sudo systemctl start certbot-renew@${PROVIDER}.service   # test run without waiting for the timer
+    journalctl -u certbot-renew@${PROVIDER}.service
