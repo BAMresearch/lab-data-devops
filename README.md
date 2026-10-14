@@ -9,3 +9,7 @@ This is a collection of scripts using the same mechanisms to set up systemd user
 
 Currently, it uses the ingress of an existing kubernetes setup for mapping domain names to port numbers of the containers and as TLS endpoint. This is subject to change, Traefik possibly, at a later point.
 
+## Install
+
+Clone this repo to `/opt/lab-data-devops` for the same path on each machine and less changes in container specs.
+
