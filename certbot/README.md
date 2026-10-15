@@ -25,6 +25,9 @@ or later:
 
 ## Hooks to run on update
 
+The post-hook sets ownership to letsencrypt group for giving access to traefik.
+The deploy-hook restarts traefik for ingesting the new certs.
+
     sudo mkdir -p /etc/letsencrypt/renewal-hooks/{deploy,post}
     ln -s $(realpath certbot-renew-deploy-hook.sh) /etc/letsencrypt/renewal-hooks/deploy/certbot-renew-deploy-hook.sh
     ln -s $(realpath certbot-renew-post-hook.sh) /etc/letsencrypt/renewal-hooks/post/certbot-renew-post-hook.sh
@@ -112,11 +115,12 @@ Encrypt the file, root user can use TPM2 for that:
     # let it be owned by cert-upd-bot
     chown cert-upd-bot:cert-upd-bot "$creds_path" && chmod 640 "$creds_path"
 
-### first time cert issue
+## First time cert issue
 
     . /opt/lab-data-devops/host.env  # for $FQDN
+    # create the expected directories
     sudo install -d -o cert-upd-bot -g cert-upd-bot -m 0750 /var/{log,lib}/letsencrypt
-
+    # get the cert, folders in /etc/letsencrypt are populated
     ~/venv_certbot/bin/python /usr/bin/certbot certonly -v --server https://acme-v02.api.letsencrypt.org/directory -a dns-schlundtech --dns-schlundtech-credentials ~/dns.ini -d *.$FQDN
     shred -u ~/dns.ini
 
