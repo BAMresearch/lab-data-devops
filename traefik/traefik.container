@@ -1,0 +1,24 @@
+[Unit]
+Description=Traefik reverse proxy
+After=network-online.target
+
+[Container]
+Image=docker.io/traefik:v3
+ContainerName=traefik
+PublishPort=60080:80
+PublishPort=60443:443
+PublishPort=61080:8080
+Volume=/etc/traefik:/etc/traefik:ro,Z
+Volume=/etc/letsencrypt:/etc/letsencrypt:ro,Z
+PodmanArgs=--group-add keep-groups
+Network=pasta
+# Hostname for services bound to the host loopback (see containers.conf)
+AddHost=host.loopback:169.254.1.3
+Environment=TZ=Europe/Berlin
+EnvironmentFile=/opt/lab-data-devops/host.env
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target

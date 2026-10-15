@@ -1,0 +1,57 @@
+# Traefik reverse proxy setup
+
+## Create a local user for isolation
+
+    sudo useradd -m -shell /usr/sbin/nologin traefik-pod
+    sudo passwd -d -l traefik-pod
+    sudo loginctl enable-linger traefik-pod
+    sudo machinectl shell traefik-pod@ /bin/bash
+
+Use that account to setup traefik.
+
+## Enable the podman socket
+
+    systemctl --user enable --now podman.socket
+
+## create a podman network for traefik and its frontends
+
+    podman network create traefiknet
+
+## Open port 443 in ufw
+
+    sudo ufw allow 443/tcp
+    sudo ufw allow 80/tcp   # for the http->https redirect
+
+### and port 61080 for the dashboard
+
+    sudo ufw allow 61080/tcp
+
+## forward privileged ports to unpriv. ports for traefik to run as user
+
+# ufw doesn't do port forwarding natively, but you can add nft rules
+# in /etc/ufw/before.rules, add at the top before *filter:
+    *nat
+    :PREROUTING ACCEPT [0:0]
+    -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 8080
+    -A PREROUTING -p tcp --dport 443 -j REDIRECT --to-port 8443
+    COMMIT
+
+## Reload systemctl and restart
+
+    systemctl --user daemon-reload
+    systemctl --user restart traefik.service
+
+## Test
+
+    curl https://test.sub.example.com
+
+or check redirect works
+
+    curl -I http://test.sub.example.com
+
+    curl -k https://test.sub.example.com
+
+If that doesn't work, check Traefik can resolve the container name:
+
+    podman exec traefik wget -q -O- http://webtest:80
+

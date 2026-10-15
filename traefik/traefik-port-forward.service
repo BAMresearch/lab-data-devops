@@ -1,0 +1,38 @@
+# to be run as system service, as root
+[Unit]
+Description=Port forwarding 80->60080 and 443->60443 for reverse proxy in user space
+After=network.target ufw.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+
+# mark redirected packets
+ExecStart=/usr/sbin/iptables -t mangle -A PREROUTING -p tcp --dport 80 -j MARK --set-mark 1
+ExecStart=/usr/sbin/iptables -t mangle -A PREROUTING -p tcp --dport 443 -j MARK --set-mark 1
+# port forwarding
+ExecStart=/usr/sbin/iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-ports 60080
+ExecStart=/usr/sbin/iptables -t nat -A PREROUTING -p tcp --dport 443 -j REDIRECT --to-ports 60443
+# masquerade so responses route back correctly
+ExecStart=/usr/sbin/iptables -t nat -A POSTROUTING -p tcp --dport 60080 -j MASQUERADE
+ExecStart=/usr/sbin/iptables -t nat -A POSTROUTING -p tcp --dport 60443 -j MASQUERADE
+# local traffic
+ExecStart=/usr/sbin/iptables -t nat -A OUTPUT -o lo -p tcp --dport 80 -j REDIRECT --to-ports 60080
+ExecStart=/usr/sbin/iptables -t nat -A OUTPUT -o lo -p tcp --dport 443 -j REDIRECT --to-ports 60443
+# mark redirected packets and allow on input
+ExecStart=/usr/sbin/iptables -A INPUT -p tcp --dport 60080 -m mark --mark 1 -j ACCEPT
+ExecStart=/usr/sbin/iptables -A INPUT -p tcp --dport 60443 -m mark --mark 1 -j ACCEPT
+
+ExecStop=/usr/sbin/iptables -t nat -D PREROUTING -p tcp --dport 80 -j REDIRECT --to-ports 60080
+ExecStop=/usr/sbin/iptables -t nat -D PREROUTING -p tcp --dport 443 -j REDIRECT --to-ports 60443
+ExecStop=/usr/sbin/iptables -t nat -D POSTROUTING -p tcp --dport 60080 -j MASQUERADE
+ExecStop=/usr/sbin/iptables -t nat -D POSTROUTING -p tcp --dport 60443 -j MASQUERADE
+ExecStop=/usr/sbin/iptables -t nat -D OUTPUT -o lo -p tcp --dport 80 -j REDIRECT --to-ports 60080
+ExecStop=/usr/sbin/iptables -t nat -D OUTPUT -o lo -p tcp --dport 443 -j REDIRECT --to-ports 60443
+ExecStop=/usr/sbin/iptables -t mangle -D PREROUTING -p tcp --dport 80 -j MARK --set-mark 1
+ExecStop=/usr/sbin/iptables -t mangle -D PREROUTING -p tcp --dport 443 -j MARK --set-mark 1
+ExecStop=/usr/sbin/iptables -D INPUT -p tcp --dport 60080 -m mark --mark 1 -j ACCEPT
+ExecStop=/usr/sbin/iptables -D INPUT -p tcp --dport 60443 -m mark --mark 1 -j ACCEPT
+
+[Install]
+WantedBy=multi-user.target
