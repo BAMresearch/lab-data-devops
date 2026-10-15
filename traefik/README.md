@@ -2,10 +2,10 @@
 
 ## Create a local user for isolation
 
-    sudo useradd -m -shell /usr/sbin/nologin traefik-pod
-    sudo passwd -d -l traefik-pod
-    sudo loginctl enable-linger traefik-pod
-    sudo machinectl shell traefik-pod@ /bin/bash
+    sudo useradd -m -shell /usr/sbin/nologin traefik
+    sudo passwd -d -l traefik
+    sudo loginctl enable-linger traefik
+    sudo machinectl shell traefik@ /bin/bash
 
 Use that account to setup traefik.
 
