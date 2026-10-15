@@ -28,8 +28,8 @@ Use that account to setup traefik.
 
 ## forward privileged ports to unpriv. ports for traefik to run as user
 
-# ufw doesn't do port forwarding natively, but you can add nft rules
-# in /etc/ufw/before.rules, add at the top before *filter:
+    # ufw doesn't do port forwarding natively, but you can add nft rules
+    # in /etc/ufw/before.rules, add at the top before *filter:
     *nat
     :PREROUTING ACCEPT [0:0]
     -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 8080
