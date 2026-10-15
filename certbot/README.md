@@ -114,6 +114,7 @@ Encrypt the file, root user can use TPM2 for that:
 
 ### first time cert issue
 
+    . /opt/lab-data-devops/host.env  # for $FQDN
     sudo install -d -o cert-upd-bot -g cert-upd-bot -m 0750 /var/{log,lib}/letsencrypt
 
     ~/venv_certbot/bin/python /usr/bin/certbot certonly -v --server https://acme-v02.api.letsencrypt.org/directory -a dns-schlundtech --dns-schlundtech-credentials ~/dns.ini -d *.$FQDN
@@ -124,7 +125,6 @@ Encrypt the file, root user can use TPM2 for that:
 Make the chosen plugin known to the certbot configuration:
 
     # Set the domain for this configuration
-    FQDN=<your domain>
     sed -i.bak "/^\[renewalparams\]/,/^\[/{
         /^\[renewalparams\]/a\
         authenticator = $AUTHENTICATOR\n\
