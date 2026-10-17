@@ -2,7 +2,8 @@
 
 ## Create a local user for isolation
 
-    sudo useradd -m -shell /usr/sbin/nologin traefik
+    sudo useradd -m --shell /usr/sbin/nologin traefik
+    sudo usermod -G letsencrypt traefik
     sudo passwd -d -l traefik
     sudo loginctl enable-linger traefik
     sudo machinectl shell traefik@ /bin/bash
@@ -13,9 +14,25 @@ Use that account to setup traefik.
 
     systemctl --user enable --now podman.socket
 
-## create a podman network for traefik and its frontends
+## Put config files in place
 
-    podman network create traefiknet
+    # as traefik user
+    mkdir -p .config/containers/systemd
+    ln -s $(realpath containers.conf) ~/.config/containers/
+    ln -s $(realpath traefik.container) ~/.config/containers/systemd/
+
+    # as root
+    sudo chown -R root:root $(realpath etc)
+    sudo ln -sf $(realpath etc) /etc/traefik
+    systemctl enable ./traefik-port-forward.service
+    systemctl start ./traefik-port-forward.service
+
+And copy other service files to /etc/traefik/conf.d/
+
+## Reload systemctl and restart
+
+    systemctl --user daemon-reload
+    systemctl --user restart traefik.service
 
 ## Open port 443 in ufw
 
@@ -35,11 +52,6 @@ Use that account to setup traefik.
     -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 8080
     -A PREROUTING -p tcp --dport 443 -j REDIRECT --to-port 8443
     COMMIT
-
-## Reload systemctl and restart
-
-    systemctl --user daemon-reload
-    systemctl --user restart traefik.service
 
 ## Test
 

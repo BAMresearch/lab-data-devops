@@ -3,3 +3,4 @@ siteconfig
 openbis/static/index.html
 .*.kate-swp
 host.env
+traefik/etc/conf.d/*.yml
