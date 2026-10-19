@@ -1,0 +1,15 @@
+http:
+  routers:
+    tiled:
+      rule: 'Host(`tiled.{{ env "FQDN" }}`)'
+      entryPoints: [websecure]
+      service: tiled
+      tls: {}
+
+  services:
+    tiled:
+      loadBalancer:
+        passHostHeader: true
+        servers:
+          - url: "http://host.loopback:8020"
+

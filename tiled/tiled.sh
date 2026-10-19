@@ -90,6 +90,7 @@ RestartSec=5s
 WantedBy=default.target
 EOF
     chmod o-rwx "$contpath/$cname.container"
+    sudo cp $scriptdir/traefik/tiled.yml /etc/traefik/conf.d/
     # make the new container (or updates) know to systemctl
     systemctl --user daemon-reload
 }

@@ -27,7 +27,9 @@ Use that account to setup traefik.
     systemctl enable ./traefik-port-forward.service
     systemctl start ./traefik-port-forward.service
 
-And copy other service files to /etc/traefik/conf.d/
+And **copy** other service files to /etc/traefik/conf.d/,
+a symlink will not work because it can't be resolve in the container
+unless its target exists under the exact same path.
 
 ## Reload systemctl and restart
 
