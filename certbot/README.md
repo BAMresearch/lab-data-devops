@@ -101,6 +101,20 @@ For renewal config below:
     sudo ln -s "$REPO/certbot-renew@ipv64.service.d/provider.conf" \
             "$UNITDIR/certbot-renew@ipv64.service.d/"
 
+## First time cert issue
+
+    . /opt/lab-data-devops/host.env  # for $FQDN
+    # create the expected directories
+    sudo install -d -o cert-upd-bot -g cert-upd-bot -m 0750 /var/{log,lib}/letsencrypt
+
+Get the cert, folders in /etc/letsencrypt are populated, for *schlundtech*:
+
+    ~/venv_certbot/bin/python /usr/bin/certbot certonly -v --server https://acme-v02.api.letsencrypt.org/directory -a dns-schlundtech --dns-schlundtech-credentials ~/dns.ini -d *.$FQDN
+
+For *ipv64.net*:
+
+    ~/venv_certbot/bin/python /usr/bin/certbot certonly -v --server https://acme-v02.api.letsencrypt.org/directory -a dns-multi --dns-multi-credentials ~/dns.ini -d *.$FQDN
+
 ## Encrypt credentials file, put in place
 
     PROVIDER=<ipv64 or schlundtech>
@@ -115,27 +129,9 @@ Encrypt the file, root user can use TPM2 for that:
     # let it be owned by cert-upd-bot
     chown cert-upd-bot:cert-upd-bot "$creds_path" && chmod 640 "$creds_path"
 
-## First time cert issue
+Remove the unencrypted credentials file:
 
-    . /opt/lab-data-devops/host.env  # for $FQDN
-    # create the expected directories
-    sudo install -d -o cert-upd-bot -g cert-upd-bot -m 0750 /var/{log,lib}/letsencrypt
-    # get the cert, folders in /etc/letsencrypt are populated
-    ~/venv_certbot/bin/python /usr/bin/certbot certonly -v --server https://acme-v02.api.letsencrypt.org/directory -a dns-schlundtech --dns-schlundtech-credentials ~/dns.ini -d *.$FQDN
     shred -u ~/dns.ini
-
-## Certbot renewal config
-
-Make the chosen plugin known to the certbot configuration:
-
-    # Set the domain for this configuration
-    sed -i.bak "/^\[renewalparams\]/,/^\[/{
-        /^\[renewalparams\]/a\
-        authenticator = $AUTHENTICATOR\n\
-        ${AUTHENTICATOR}_credentials = /run/credentials/certbot-renew.service/${creds_fn}
-        /^\s*authenticator\s*=/d
-        /^\s*dns_\w+_credentials\s*=/d
-    }" /etc/letsencrypt/renewal/$FQDN.conf
 
 ## Final reload and check
 
