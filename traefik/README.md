@@ -6,12 +6,12 @@
     sudo usermod -G letsencrypt traefik
     sudo passwd -d -l traefik
     sudo loginctl enable-linger traefik
-    sudo machinectl shell traefik@ /bin/bash
 
 Use that account to setup traefik.
 
 ## Enable the podman socket
 
+    sudo machinectl shell traefik@ /bin/bash
     systemctl --user enable --now podman.socket
 
 ## Put config files in place
@@ -31,6 +31,7 @@ And copy other service files to /etc/traefik/conf.d/
 
 ## Reload systemctl and restart
 
+    sudo machinectl shell traefik@ /bin/bash
     systemctl --user daemon-reload
     systemctl --user restart traefik.service
 
