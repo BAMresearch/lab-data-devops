@@ -1,3 +1,5 @@
 #!/bin/sh
 # set group ownership for certificates needed by other services, such as traefik
-chown -R :letsencrypt /etc/letsencrypt/{live,archive}
+chown -R :letsencrypt \
+    /etc/letsencrypt/live \
+    /etc/letsencrypt/archive
