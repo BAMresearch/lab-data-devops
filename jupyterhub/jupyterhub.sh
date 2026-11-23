@@ -200,11 +200,11 @@ if [ "$1" = up ]; then
         systemctl --user restart "$CONT_SRV_NAME"
     fi
 
-    setupIngress "$SVC_NAME" "${scriptpath%.*}.yaml" "$JHUB_PUB" "$JHUB_KEY" "$JHUB_FQDN"
+    #setupIngress "$SVC_NAME" "${scriptpath%.*}.yaml" "$JHUB_PUB" "$JHUB_KEY" "$JHUB_FQDN"
 
 elif [ "$1" = down ];then # clean up in reversed order
 
-    teardownIngress "$SVC_NAME" "$CONT_SRV_NAME"
+    #teardownIngress "$SVC_NAME" "$CONT_SRV_NAME"
     if [ "$2" != ingress ]; then
         podman ps -aq --filter name='^jupyter-' | xargs -r podman rm -f
         systemctl --user stop "$CONT_SRV_NAME"

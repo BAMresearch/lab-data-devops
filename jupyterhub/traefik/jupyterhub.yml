@@ -1,0 +1,15 @@
+http:
+  routers:
+    jhub:
+      rule: 'Host(`jhub.{{ env "FQDN" }}`)'
+      entryPoints: [websecure]
+      service: jhub
+      tls: {}
+
+  services:
+    jhub:
+      loadBalancer:
+        passHostHeader: true
+        servers:
+          - url: "http://host.loopback:8900"
+
