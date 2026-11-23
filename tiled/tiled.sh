@@ -108,11 +108,11 @@ if [ "$1" = up ]; then
     genTiledSvc "$CONT_SRV_NAME" latest "$TILED_DATA" "$NETWORK_NAME" "$CONT_DB_NAME"
     systemctl --user restart "$CONT_SRV_NAME"
 
-    setupIngress "$SVC_NAME" "${scriptpath%.*}.yaml" "$TILED_PUB" "$TILED_KEY" "$TILED_FQDN"
+#    setupIngress "$SVC_NAME" "${scriptpath%.*}.yaml" "$TILED_PUB" "$TILED_KEY" "$TILED_FQDN"
 
 elif [ "$1" = down ];then # clean up in reversed order
 
-    teardownIngress "$SVC_NAME" "$CONT_SRV_NAME"
+#    teardownIngress "$SVC_NAME" "$CONT_SRV_NAME"
     systemctl --user stop  "$CONT_SRV_NAME"
     #stopContainer "$CONT_SRV_NAME"
     #stopContainer "$CONT_DB_NAME"

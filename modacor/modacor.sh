@@ -63,11 +63,11 @@ if [ "$1" = up ]; then
     genMoDaCorSvc "$CONT_SRV_NAME" latest "$NETWORK_NAME"
     systemctl --user restart "$CONT_SRV_NAME"
 
-    setupIngress "$SVC_NAME" "${scriptpath%.*}.yaml" "$MODACOR_PUB" "$MODACOR_KEY" "$MODACOR_FQDN"
+#    setupIngress "$SVC_NAME" "${scriptpath%.*}.yaml" "$MODACOR_PUB" "$MODACOR_KEY" "$MODACOR_FQDN"
 
 elif [ "$1" = down ];then # clean up in reversed order
 
-    teardownIngress "$SVC_NAME" "$CONT_SRV_NAME"
+#    teardownIngress "$SVC_NAME" "$CONT_SRV_NAME"
     systemctl --user stop "$CONT_SRV_NAME"
 
 elif [ "$1" = reset ]; then
