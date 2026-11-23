@@ -1,0 +1,15 @@
+http:
+  routers:
+    modacor:
+      rule: 'Host(`modacor.{{ env "FQDN" }}`)'
+      entryPoints: [websecure]
+      service: modacor
+      tls: {}
+
+  services:
+    modacor:
+      loadBalancer:
+        passHostHeader: true
+        servers:
+          - url: "http://host.loopback:8700"
+
