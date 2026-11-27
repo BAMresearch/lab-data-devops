@@ -1,0 +1,16 @@
+# 1. make sure to disable SSL /etc/default/rundeckd by commenting 'RUNDECK_WITH_SSL=true'
+# 2. adjust URLs in /etc/rundeck/rundeck-config.properties and framework.properties
+http:
+  routers:
+    rundeck:
+      rule: 'Host(`rundeck.{{ env "FQDN" }}`)'
+      entryPoints: [websecure]
+      service: rundeck
+      tls: {}
+
+  services:
+    rundeck:
+      loadBalancer:
+        passHostHeader: true
+        servers:
+          - url: "http://host.loopback:4440"
